@@ -8,9 +8,11 @@
 extern uint16_t *frameBuf;
 #define GW 240
 #define GH 240
-#define GEN_COUNT 12
+#define GEN_COUNT 22
 static const char *GEN_NAMES[GEN_COUNT] = {"gen_wander", "gen_spirograph", "gen_vine", "gen_lissajous", "gen_sashiko_drift",
-                                           "gen_patchwork", "gen_mandala", "gen_flowfield", "gen_phyllotaxis", "gen_life_x", "gen_granny_square", "gen_granny_shapes"};
+                                           "gen_patchwork", "gen_mandala", "gen_flowfield", "gen_phyllotaxis", "gen_life_x", "gen_granny_square", "gen_granny_shapes",
+                                           "gen_roses_cream", "gen_roses_black", "gen_daisies_cream", "gen_daisies_black", "gen_lavender_cream", "gen_lavender_black",
+                                           "gen_blossom_cream", "gen_blossom_black", "gen_ferns_cream", "gen_ferns_black"};
 
 // ---------------- palette / colour helpers ----------------
 static inline uint16_t C565(int r, int g, int b) { return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3); }
@@ -267,13 +269,84 @@ static void grannyStep(bool shapes) {
   if (++GR.k >= per) { GR.k = 0; if (++GR.s >= GR.sides) { GR.s = 0; if (++GR.n > GR.rounds) GR.done = true; } }
 }
 
+
+// ---- 12..21 growing florals: stems climb and branch, flowers bloom petal by petal, then the bed fades and regrows
+struct Tip { float x, y, a; int age; bool alive; };
+struct Flower { float x, y, size, rot; int type, stage; uint16_t col; bool alive; };
+struct Flora { int kind; bool dark; Tip tips[20]; int ntips; Flower fl[48]; int nfl; int quiet; uint16_t stem, leaf; } FL;
+static const uint16_t FLOWER_COLS[] = {C565(196, 60, 72), C565(236, 150, 160), C565(214, 168, 58), C565(238, 230, 210), C565(150, 110, 190), C565(200, 90, 120), C565(72, 132, 170)};
+static void addTip(float x, float y, float a) { if (FL.ntips < 20) { FL.tips[FL.ntips++] = {x, y, a, 0, true}; } }
+static void addGroundTip(float x) { float dy = sqrtf(fmaxf(0.0f, 110.0f * 110.0f - (x - 120) * (x - 120))); addTip(x, 120 + dy - 2, -1.5708f + frandr(-0.4f, 0.4f)); }
+static void addFlower(float x, float y, int type, float size, uint16_t col) { if (FL.nfl < 48) FL.fl[FL.nfl++] = {x, y, size, frandr(0, 6.28f), type, 0, col, true}; }
+static void leafStroke(float x, float y, float a, float len, float w, uint16_t c) {
+  for (int l = 0; l < 4; l++) { float t = l / 3.0f, half = w * sinf(t * 3.14159f) + 0.3f, px = x + cosf(a) * len * t, py = y + sinf(a) * len * t; stitch(px - sinf(a) * half, py + cosf(a) * half, px + sinf(a) * half, py - cosf(a) * half, 1.5f, c); }
+  stitch(x, y, x + cosf(a) * len, y + sinf(a) * len, 0.9f, shade(c, 0.6f));
+}
+static void floraInit(int k) {
+  FL.kind = k / 2; FL.dark = k & 1;
+  uint16_t g = FL.dark ? SOOT : C565(232, 224, 204); fillGround(g, !FL.dark);
+  FL.stem = FL.dark ? C565(120, 150, 96) : C565(86, 110, 64); FL.leaf = FL.dark ? C565(150, 180, 110) : C565(126, 150, 92);
+  FL.ntips = 0; FL.nfl = 0; FL.quiet = 0;
+  int n = FL.kind == 4 ? 3 : random(2, 5);
+  for (int i = 0; i < n; i++) { if (FL.kind == 3) addTip(frandr(60, 180), frandr(60, 180), frandr(-0.6f, 0.6f) + (random(2) ? 0 : 3.14f)); else addGroundTip(frandr(40, 200)); }
+}
+// one flower stage; returns false when finished
+static bool bloom(Flower &f) {
+  float x = f.x, y = f.y, s = f.size;
+  switch (f.type) {
+    case 0: { // rose: yarn spiral, 14 stages
+      float th0 = f.stage * 0.55f, th1 = th0 + 0.55f, r0 = 1 + s * th0 / 7.7f, r1 = 1 + s * th1 / 7.7f;
+      stitch(x + r0 * cosf(th0 + f.rot), y + r0 * sinf(th0 + f.rot), x + r1 * cosf(th1 + f.rot), y + r1 * sinf(th1 + f.rot), 2.8f, shade(f.col, 0.75f + 0.5f * f.stage / 14.0f));
+      return ++f.stage < 14; }
+    case 1: { // daisy: 8 lazy-daisy petals then knot centre
+      if (f.stage < 8) { float a = f.rot + f.stage * 0.785f; for (int k = 0; k < 8; k++) { float u = k * 0.785f, v = u + 0.785f, px = x + cosf(a) * s * 0.55f, py = y + sinf(a) * s * 0.55f;
+          stitch(px + cosf(a) * s * 0.5f * cosf(u) - sinf(a) * s * 0.2f * sinf(u), py + sinf(a) * s * 0.5f * cosf(u) + cosf(a) * s * 0.2f * sinf(u), px + cosf(a) * s * 0.5f * cosf(v) - sinf(a) * s * 0.2f * sinf(v), py + sinf(a) * s * 0.5f * cosf(v) + cosf(a) * s * 0.2f * sinf(v), 1.5f, f.col); } }
+      else for (int k = 0; k < 5; k++) knot(x + cosf(k * 1.26f) * 1.6f, y + sinf(k * 1.26f) * 1.6f, 1.5f, C565(214, 168, 58));
+      return ++f.stage < 9; }
+    case 2: { // lavender: knots climbing a short spike
+      float a = f.rot; float px = x + cosf(a) * f.stage * 2.6f, py = y + sinf(a) * f.stage * 2.6f;
+      knot(px - sinf(a) * 2.2f, py + cosf(a) * 2.2f, 2.0f, f.col); knot(px + sinf(a) * 2.2f, py - cosf(a) * 2.2f, 2.0f, shade(f.col, 1.15f)); if (f.stage % 2) knot(px, py, 1.6f, shade(f.col, 0.85f));
+      return ++f.stage < (int)(s / 2.6f); }
+    case 3: { // blossom: 5 satin petals then centre
+      if (f.stage < 5) { float a = f.rot + f.stage * 1.2566f; for (int l = 0; l < 5; l++) { float t = 0.25f + 0.75f * l / 4.0f, half = s * 0.28f * sinf((l + 1) / 6.0f * 3.14f); float px = x + cosf(a) * s * t, py = y + sinf(a) * s * t; stitch(px - sinf(a) * half, py + cosf(a) * half, px + sinf(a) * half, py - cosf(a) * half, 1.6f, l == 0 ? shade(f.col, 0.85f) : f.col); } }
+      else for (int k = 0; k < 6; k++) knot(x + cosf(k * 1.05f) * 1.8f, y + sinf(k * 1.05f) * 1.8f, 1.3f, C565(214, 168, 58));
+      return ++f.stage < 6; }
+  }
+  return false;
+}
+static void floraStep() {
+  int alive = 0;
+  for (int i = 0; i < FL.ntips; i++) {
+    Tip &t = FL.tips[i]; if (!t.alive) continue; alive++;
+    float up = FL.kind == 3 ? 0.0f : -1.5708f;                       // blossom branches wander sideways
+    float turn = FL.kind == 4 ? 0.09f : frandr(-0.3f, 0.3f);           // ferns curl steadily
+    if (FL.kind != 3 && FL.kind != 4) t.a += turn + (up - t.a) * 0.06f; else if (FL.kind == 3) t.a += frandr(-0.25f, 0.25f); else t.a += turn * (t.age < 40 ? 1 : 0.2f) + frandr(-0.05f, 0.05f);
+    float nx = t.x + cosf(t.a) * 3.2f, ny = t.y + sinf(t.a) * 3.2f;
+    if (!inCircle(nx, ny, 112) || t.age > (FL.kind == 4 ? 90 : 140)) { t.alive = false; if (t.age > 8 && (FL.kind == 0 || FL.kind == 1 || FL.kind == 3)) addFlower(t.x, t.y, FL.kind, frandr(7, 13), FLOWER_COLS[random(0, 7)]); continue; }
+    stitch(t.x, t.y, nx, ny, FL.kind == 3 ? 3.0f : 2.2f, FL.kind == 3 ? C565(92, 62, 40) : FL.stem);
+    t.x = nx; t.y = ny; t.age++;
+    if (FL.kind == 4) { if (t.age % 3 == 0) { float side = (t.age / 3) % 2 ? 1.1f : -1.1f; leafStroke(t.x, t.y, t.a + side, 6 + 10 * (1 - t.age / 90.0f), 1.6f, FL.leaf); } }
+    else if (frand() < 0.10f) leafStroke(t.x, t.y, t.a + (random(2) ? 0.9f : -0.9f), frandr(7, 12), 2.2f, FL.leaf);
+    if (FL.kind == 2 && t.age > 20 && frand() < 0.04f) { addFlower(t.x, t.y, 2, frandr(14, 28), FLOWER_COLS[4 + random(0, 2)]); t.alive = false; }
+    if (FL.kind == 3 && frand() < 0.08f) addFlower(t.x + frandr(-6, 6), t.y + frandr(-6, 6), 3, frandr(6, 10), FLOWER_COLS[random(2) ? 1 : 5]);
+    if ((FL.kind == 0 || FL.kind == 1) && t.age > 15 && frand() < 0.03f) addFlower(t.x, t.y, FL.kind, frandr(6, 12), FLOWER_COLS[random(0, 7)]);
+    if (frand() < (FL.kind == 3 ? 0.05f : 0.03f) && FL.ntips < 20) addTip(t.x, t.y, t.a + frandr(-1.0f, 1.0f));
+  }
+  int blooming = 0;
+  for (int i = 0; i < FL.nfl; i++) if (FL.fl[i].alive) { blooming++; if (!bloom(FL.fl[i])) FL.fl[i].alive = false; if (blooming >= 3) break; }
+  if (alive == 0 && blooming == 0) {
+    if (++FL.quiet > 120) { fadeToGround(255); floraInit(FL.kind * 2 + FL.dark); }
+    else if (FL.quiet == 1 && FL.ntips < 20 && frand() < 0.7f) { FL.quiet = 0; if (FL.kind == 3) addTip(frandr(60, 180), frandr(60, 180), frandr(-0.6f, 0.6f)); else addGroundTip(frandr(40, 200)); }
+  }
+}
+
 // ---------------- dispatch ----------------
 static void genInit(int id) { G.id = id; G.steps = 0;
   switch (id) { case 0: initWander(); break; case 1: initSpiro(); break; case 2: initVine(); break; case 3: initLiss(); break; case 4: initSash(); drawSash(); break;
-                case 5: initPatch(); break; case 6: initMand(); break; case 7: initFlow(); break; case 8: initPhyl(); break; case 9: initLife(); break; case 10: grannyNew(false); break; default: grannyNew(true); } }
+                case 5: initPatch(); break; case 6: initMand(); break; case 7: initFlow(); break; case 8: initPhyl(); break; case 9: initLife(); break; case 10: grannyNew(false); break; case 11: grannyNew(true); break; default: floraInit(id - 12); } }
 static void genStep() {
   switch (G.id) { case 0: stepWander(); break; case 1: stepSpiro(); break; case 2: stepVine(); break; case 3: stepLiss(); break; case 4: stepSash(); break;
-                  case 5: stepPatch(); break; case 6: stepMand(); break; case 7: stepFlow(); break; case 8: stepPhyl(); break; case 9: stepLife(); break; case 10: grannyStep(false); break; default: grannyStep(true); }
+                  case 5: stepPatch(); break; case 6: stepMand(); break; case 7: stepFlow(); break; case 8: stepPhyl(); break; case 9: stepLife(); break; case 10: grannyStep(false); break; case 11: grannyStep(true); break; default: floraStep(); }
   G.steps++;
 }
 static int genIndex(const char *name) { for (int i = 0; i < GEN_COUNT; i++) if (strcmp(name, GEN_NAMES[i]) == 0) return i; return -1; }
