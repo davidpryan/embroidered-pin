@@ -1,0 +1,856 @@
+{
+"bats": {
+"set": "linen",
+"frames": 48,
+"loop": false,
+"bg": true,
+"bytes": 765704
+},
+"blackwork": {
+"set": "linen",
+"frames": 48,
+"loop": false,
+"bg": true,
+"bytes": 184757
+},
+"dandelion": {
+"set": "linen",
+"frames": 48,
+"loop": false,
+"bg": true,
+"bytes": 336545
+},
+"granny_on_linen": {
+"set": "linen",
+"frames": 48,
+"loop": false,
+"bg": true,
+"bytes": 178663
+},
+"hitomezashi": {
+"set": "linen",
+"frames": 48,
+"loop": false,
+"bg": true,
+"bytes": 192912
+},
+"patches": {
+"set": "linen",
+"frames": 48,
+"loop": false,
+"bg": true,
+"bytes": 175559
+},
+"redwork_bird": {
+"set": "linen",
+"frames": 48,
+"loop": false,
+"bg": true,
+"bytes": 149130
+},
+"sampler": {
+"set": "linen",
+"frames": 48,
+"loop": false,
+"bg": true,
+"bytes": 181852
+},
+"toadstool": {
+"set": "linen",
+"frames": 48,
+"loop": false,
+"bg": true,
+"bytes": 178408
+},
+"wreath_heart": {
+"set": "linen",
+"frames": 48,
+"loop": false,
+"bg": true,
+"bytes": 181109
+},
+"button": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 234926
+},
+"granny_burton": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 86745
+},
+"granny_classic": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 79546
+},
+"granny_mandala": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 104478
+},
+"granny_patchwork": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 104854
+},
+"patched_moon": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 47045
+},
+"burton_spiral": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 168619
+},
+"button_jar": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 48953
+},
+"crazy_quilt": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 147168
+},
+"darning_patch": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 96849
+},
+"granny_hexagon": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 89557
+},
+"patched_heart": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 364752
+},
+"ragdoll_seam": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 142222
+},
+"ripple_blanket": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 154123
+},
+"spiderweb": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 88713
+},
+"yarn_ball": {
+"set": "granny",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 562043
+},
+"asanoha_lattice": {
+"set": "stitch",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 119111
+},
+"chain_spiral": {
+"set": "stitch",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 101128
+},
+"cross_stitch_rose": {
+"set": "stitch",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 51982
+},
+"rim_daisies": {
+"set": "stitch",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 53409
+},
+"seigaiha_waves": {
+"set": "stitch",
+"frames": 48,
+"loop": false,
+"bg": false,
+"bytes": 201327
+},
+"bumblebee_floral": {
+"set": "insects",
+"frames": 8,
+"loop": false,
+"bg": false,
+"bytes": 186216
+},
+"bumblebee_plain": {
+"set": "insects",
+"frames": 8,
+"loop": false,
+"bg": false,
+"bytes": 260166
+},
+"dragonfly_floral": {
+"set": "insects",
+"frames": 8,
+"loop": false,
+"bg": false,
+"bytes": 137648
+},
+"dragonfly_plain": {
+"set": "insects",
+"frames": 8,
+"loop": false,
+"bg": false,
+"bytes": 171657
+},
+"ladybird_floral": {
+"set": "insects",
+"frames": 8,
+"loop": false,
+"bg": false,
+"bytes": 151185
+},
+"ladybird_plain": {
+"set": "insects",
+"frames": 8,
+"loop": false,
+"bg": false,
+"bytes": 203642
+},
+"luna_moth_floral": {
+"set": "insects",
+"frames": 8,
+"loop": false,
+"bg": false,
+"bytes": 186752
+},
+"luna_moth_plain": {
+"set": "insects",
+"frames": 8,
+"loop": false,
+"bg": false,
+"bytes": 268842
+},
+"tiger_moth_floral": {
+"set": "insects",
+"frames": 8,
+"loop": false,
+"bg": false,
+"bytes": 170249
+},
+"tiger_moth_plain": {
+"set": "insects",
+"frames": 8,
+"loop": false,
+"bg": false,
+"bytes": 242071
+},
+"bobbing_buttons": {
+"set": "loops",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 640734
+},
+"bunting": {
+"set": "loops",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 587671
+},
+"mandala_turn": {
+"set": "loops",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 2221201
+},
+"marching_stitch": {
+"set": "loops",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 870350
+},
+"moon_pendulum": {
+"set": "loops",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 521282
+},
+"rolling_yarn": {
+"set": "loops",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 594398
+},
+"rotating_spiral": {
+"set": "loops",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 3064948
+},
+"spool": {
+"set": "loops",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 274991
+},
+"swinging_spider": {
+"set": "loops",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 279377
+},
+"waving_ripple": {
+"set": "loops",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 3095568
+},
+"big_bat": {
+"set": "bold",
+"frames": 16,
+"loop": true,
+"bg": true,
+"bytes": 334801
+},
+"big_button": {
+"set": "bold",
+"frames": 16,
+"loop": true,
+"bg": true,
+"bytes": 296694
+},
+"big_granny": {
+"set": "bold",
+"frames": 24,
+"loop": false,
+"bg": true,
+"bytes": 175188
+},
+"big_heart": {
+"set": "bold",
+"frames": 16,
+"loop": true,
+"bg": true,
+"bytes": 493289
+},
+"big_moon": {
+"set": "bold",
+"frames": 16,
+"loop": true,
+"bg": true,
+"bytes": 602749
+},
+"big_ring": {
+"set": "bold",
+"frames": 16,
+"loop": true,
+"bg": true,
+"bytes": 359164
+},
+"big_spider": {
+"set": "bold",
+"frames": 16,
+"loop": true,
+"bg": true,
+"bytes": 510476
+},
+"big_spiral": {
+"set": "bold",
+"frames": 24,
+"loop": false,
+"bg": true,
+"bytes": 193635
+},
+"big_star": {
+"set": "bold",
+"frames": 24,
+"loop": false,
+"bg": true,
+"bytes": 143836
+},
+"big_toadstool": {
+"set": "bold",
+"frames": 24,
+"loop": false,
+"bg": true,
+"bytes": 191251
+},
+"big_x": {
+"set": "bold",
+"frames": 24,
+"loop": false,
+"bg": true,
+"bytes": 140718
+},
+"higaki": {
+"set": "wagara",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 208283
+},
+"hishi": {
+"set": "wagara",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 208068
+},
+"ichimatsu": {
+"set": "wagara",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 206888
+},
+"kagome": {
+"set": "wagara",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 215803
+},
+"kanoko": {
+"set": "wagara",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 185316
+},
+"kikko": {
+"set": "wagara",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 177721
+},
+"shippo": {
+"set": "wagara",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 242520
+},
+"tatewaku": {
+"set": "wagara",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 163600
+},
+"uroko": {
+"set": "wagara",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 225510
+},
+"yagasuri": {
+"set": "wagara",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 241542
+},
+"acorn_x": {
+"set": "cross-stitch",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 185271
+},
+"asanoha_indigo": {
+"set": "sashiko",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 218114
+},
+"bats_circle": {
+"set": "burton",
+"frames": 24,
+"loop": true,
+"bg": true,
+"bytes": 444696
+},
+"bear_paw": {
+"set": "quilt",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 224038
+},
+"bee_x": {
+"set": "cross-stitch",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 182597
+},
+"bullion_roses": {
+"set": "floral",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 154097
+},
+"burton_tree": {
+"set": "burton",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 162173
+},
+"candle_flicker": {
+"set": "burton",
+"frames": 24,
+"loop": true,
+"bg": true,
+"bytes": 185046
+},
+"cat_on_moon": {
+"set": "burton",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 158427
+},
+"cat_x": {
+"set": "cross-stitch",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 203133
+},
+"chain_heart": {
+"set": "floral",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 161512
+},
+"crooked_house": {
+"set": "burton",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 177354
+},
+"crow": {
+"set": "burton",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 153497
+},
+"dresden_plate": {
+"set": "quilt",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 214754
+},
+"feather_vine": {
+"set": "floral",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 146009
+},
+"flying_geese": {
+"set": "quilt",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 216214
+},
+"fundo": {
+"set": "sashiko",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 176624
+},
+"granny_flower": {
+"set": "granny",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 186797
+},
+"granny_heart": {
+"set": "granny",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 180623
+},
+"granny_ripple_round": {
+"set": "granny",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 183728
+},
+"granny_stripes": {
+"set": "granny",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 230616
+},
+"granny_sunburst": {
+"set": "granny",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 201728
+},
+"granny_triangle": {
+"set": "granny",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 152270
+},
+"herringbone_bands": {
+"set": "floral",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 162451
+},
+"hexie_flower": {
+"set": "quilt",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 231892
+},
+"juji_tsunagi": {
+"set": "sashiko",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 147443
+},
+"kaki_no_hana": {
+"set": "sashiko",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 193808
+},
+"knot_cloud": {
+"set": "floral",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 172078
+},
+"lantern": {
+"set": "burton",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 195964
+},
+"lantern_swing": {
+"set": "burton",
+"frames": 24,
+"loop": true,
+"bg": true,
+"bytes": 405042
+},
+"lazy_daisy_ring": {
+"set": "floral",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 149256
+},
+"log_cabin": {
+"set": "quilt",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 175224
+},
+"moth_x": {
+"set": "cross-stitch",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 194661
+},
+"nine_patch": {
+"set": "quilt",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 203519
+},
+"nowaki": {
+"set": "sashiko",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 175963
+},
+"ohio_star": {
+"set": "quilt",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 205778
+},
+"pinwheel": {
+"set": "quilt",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 195307
+},
+"pinwheel_spin": {
+"set": "quilt",
+"frames": 24,
+"loop": true,
+"bg": true,
+"bytes": 789547
+},
+"pumpkin_x": {
+"set": "cross-stitch",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 217772
+},
+"ragdoll": {
+"set": "burton",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 164993
+},
+"satin_rose": {
+"set": "floral",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 174776
+},
+"seigaiha_indigo": {
+"set": "sashiko",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 303463
+},
+"skeleton_key": {
+"set": "burton",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 153181
+},
+"skull_x": {
+"set": "cross-stitch",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 220599
+},
+"snow_knots": {
+"set": "floral",
+"frames": 24,
+"loop": true,
+"bg": true,
+"bytes": 287309
+},
+"snowflake_x": {
+"set": "cross-stitch",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 171694
+},
+"swirl_hill": {
+"set": "burton",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 179633
+},
+"teapot_x": {
+"set": "cross-stitch",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 208170
+},
+"thread_wiggle": {
+"set": "floral",
+"frames": 24,
+"loop": true,
+"bg": true,
+"bytes": 564092
+},
+"wheat": {
+"set": "floral",
+"frames": 36,
+"loop": false,
+"bg": true,
+"bytes": 149616
+}
+}

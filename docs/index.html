@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embroidered Pin — gallery & flasher</title>
+<script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"></script>
+<style>
+  :root { --bg:#141214; --card:#1e1b1e; --ink:#e6dccb; --dim:#a89f8e; --gold:#d6a83a; --ox:#9c2a30; --teal:#4a8a88; --line:#2c282c; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,system-ui,sans-serif; }
+  header { position:sticky; top:0; z-index:5; background:rgba(20,18,20,.96); backdrop-filter:blur(6px); border-bottom:1px solid var(--line); padding:14px 20px; display:grid; grid-template-columns:1fr auto; gap:10px 24px; align-items:center; }
+  h1 { margin:0; font-size:20px; } h1 small { color:var(--dim); font-weight:400; font-size:14px; margin-left:8px; }
+  .meter { grid-column:1 / -1; display:grid; grid-template-columns:1fr auto; gap:14px; align-items:center; }
+  .bar { height:14px; background:#262226; border-radius:7px; overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--teal); transition:width .25s; }
+  .bar.over > i { background:var(--ox); }
+  .num { font-variant-numeric:tabular-nums; color:var(--dim); white-space:nowrap; } .num strong { color:var(--ink); }
+  .tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .chip { border:1px solid var(--line); background:var(--card); color:var(--dim); border-radius:999px; padding:5px 11px; font-size:13px; cursor:pointer; }
+  .chip.on { color:var(--ink); border-color:var(--gold); }
+  input[type=search] { background:var(--card); border:1px solid var(--line); color:var(--ink); border-radius:999px; padding:6px 12px; width:160px; }
+  button.act { background:var(--gold); color:#141214; border:0; border-radius:999px; padding:9px 18px; font-weight:600; cursor:pointer; font-size:14px; }
+  button.act.ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  button.act[disabled] { opacity:.4; cursor:default; }
+  main { padding:16px 20px 120px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:12px; }
+  .card { background:var(--card); border:2px solid transparent; border-radius:14px; padding:8px; cursor:pointer; position:relative; transition:border-color .15s, transform .1s; user-select:none; }
+  .card:hover { transform:translateY(-2px); } .card.sel { border-color:var(--gold); }
+  .card img { width:100%; aspect-ratio:1; border-radius:50%; display:block; background:#000; }
+  .card .n { font-size:13px; margin-top:7px; display:flex; justify-content:space-between; gap:6px; } .card .n span:last-child { color:var(--dim); font-variant-numeric:tabular-nums; }
+  .card .s { font-size:11px; color:var(--dim); margin-top:2px; display:flex; gap:6px; }
+  .tag { background:#2a262a; border-radius:4px; padding:1px 5px; } .tag.loop { color:#9cd; }
+  .tick { position:absolute; top:12px; left:12px; width:22px; height:22px; border-radius:50%; background:rgba(20,18,20,.7); border:2px solid var(--dim); display:grid; place-items:center; font-size:13px; }
+  .card.sel .tick { background:var(--gold); border-color:var(--gold); color:#141214; }
+  footer { position:fixed; bottom:0; left:0; right:0; background:rgba(20,18,20,.97); border-top:1px solid var(--line); padding:12px 20px; display:grid; gap:8px; }
+  .row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  label.opt { color:var(--dim); font-size:13px; display:flex; gap:6px; align-items:center; }
+  #log { font:12px/1.4 ui-monospace, Menlo, monospace; color:var(--dim); max-height:64px; overflow:auto; white-space:pre-wrap; }
+  .prog { height:6px; background:#262226; border-radius:3px; overflow:hidden; } .prog > i { display:block; height:100%; background:var(--gold); width:0; transition:width .2s; }
+  #fw { font-size:13px; color:var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Embroidered Pin <small id="count"></small></h1>
+  <div class="tools">
+    <input type="search" id="q" placeholder="search…">
+    <span class="chip" onclick="toggleAnim()" id="anim">▶ animate all</span>
+    <span class="chip" onclick="selectVisible(true)">select shown</span>
+    <span class="chip" onclick="selectVisible(false)">clear shown</span>
+    <span class="chip" onclick="sel.clear();render()">clear all</span>
+  </div>
+  <div class="meter"><div class="bar" id="bar"><i></i></div><div class="num" id="num"></div></div>
+  <div class="tools" id="sets" style="grid-column:1 / -1"></div>
+</header>
+<main><div class="grid" id="grid"></div></main>
+<footer>
+  <div class="row">
+    <button class="act" id="flash" onclick="flash()">Flash selection to pin</button>
+    <label class="opt"><input type="checkbox" id="withfw" checked> include firmware</label>
+    <button class="act ghost" onclick="download()">Download archive .bin</button>
+    <span id="fw"></span>
+  </div>
+  <div class="prog"><i id="prog"></i></div>
+  <div id="log">Pick pieces, plug in a pin (hold BOOT, tap RESET, release), then Flash. Chrome or Edge on desktop.</div>
+</footer>
+<script type="module">
+import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.6.0/bundle.js";
+const CAP = 0xCF0000, PAK_OFF = 0x310000;
+const FW = [["firmware/bootloader.bin", 0x0], ["firmware/partitions.bin", 0x8000], ["firmware/boot_app0.bin", 0xe000], ["firmware/app.bin", 0x10000]];
+let pieces = {}, sel = new Set(JSON.parse(localStorage.getItem('sel') || '[]')), activeSets = new Set(), anim = false;
+const fmt = b => b >= 1e6 ? (b/1e6).toFixed(2)+' MB' : Math.round(b/1024)+' KB';
+const log = (m, replace) => { const el = document.getElementById('log'); if (replace) el.lastChild && el.lastChild.nodeType === 3 ? el.lastChild.textContent = m : el.append(m); else el.append((el.textContent ? '\n' : '') + m); el.scrollTop = 1e9; };
+const prog = f => document.getElementById('prog').style.width = (f * 100) + '%';
+
+async function init() {
+  pieces = await (await fetch('pieces.json')).json();
+  const sets = [...new Set(Object.values(pieces).map(p => p.set))].sort();
+  document.getElementById('sets').innerHTML = sets.map(s => `<span class="chip" data-set="${s}">${s} <small>${Object.values(pieces).filter(p=>p.set===s).length}</small></span>`).join('');
+  document.querySelectorAll('#sets .chip').forEach(c => c.onclick = () => { const s = c.dataset.set; activeSets.has(s) ? activeSets.delete(s) : activeSets.add(s); render(); });
+  document.getElementById('q').oninput = render;
+  render();
+  try { const r = await fetch(FW[3][0], { method: 'HEAD' }); document.getElementById('fw').textContent = r.ok ? 'firmware: ready (built by GitHub Actions)' : 'firmware: not built yet — check the Actions tab'; if (!r.ok) document.getElementById('withfw').checked = false; }
+  catch { document.getElementById('fw').textContent = 'firmware: unavailable'; }
+}
+function visible() { const q = document.getElementById('q').value.toLowerCase(); return Object.keys(pieces).filter(n => (!activeSets.size || activeSets.has(pieces[n].set)) && (!q || n.includes(q) || pieces[n].set.includes(q))); }
+window.selectVisible = on => { visible().forEach(n => on ? sel.add(n) : sel.delete(n)); render(); };
+window.toggleAnim = () => { anim = !anim; document.getElementById('anim').classList.toggle('on', anim); render(); };
+window.tog = n => { sel.has(n) ? sel.delete(n) : sel.add(n); render(); };
+const used = () => { let b = 12 + 56 * sel.size; sel.forEach(n => b += pieces[n].bytes); return b; };
+function render() {
+  localStorage.setItem('sel', JSON.stringify([...sel]));
+  const vis = visible();
+  document.getElementById('grid').innerHTML = vis.map(n => { const p = pieces[n]; return `
+    <div class="card ${sel.has(n)?'sel':''}" onclick="tog('${n}')" onmouseenter="this.querySelector('img').src='thumbs/${n}.gif'" onmouseleave="if(!${anim})this.querySelector('img').src='thumbs/${n}.png'">
+      <div class="tick">${sel.has(n)?'✓':''}</div>
+      <img src="thumbs/${n}.${anim?'gif':'png'}" loading="lazy" alt="${n}">
+      <div class="n"><span>${n.replace(/_/g,' ')}</span><span>${fmt(p.bytes)}</span></div>
+      <div class="s"><span class="tag">${p.set}</span><span class="tag">${p.frames} fr</span>${p.loop?'<span class="tag loop">loop</span>':''}${p.bg?'<span class="tag">ground</span>':''}</div>
+    </div>`; }).join('');
+  document.querySelectorAll('#sets .chip').forEach(c => c.classList.toggle('on', activeSets.has(c.dataset.set)));
+  const u = used(), pct = Math.min(100, u / CAP * 100);
+  const bar = document.getElementById('bar'); bar.querySelector('i').style.width = pct + '%'; bar.classList.toggle('over', u > CAP);
+  document.getElementById('num').innerHTML = `<strong>${sel.size}</strong> selected · <strong>${fmt(u)}</strong> of ${fmt(CAP)} ${u > CAP ? '· <span style="color:#e66">over by ' + fmt(u-CAP) + '</span>' : '· ' + fmt(CAP-u) + ' free'}`;
+  document.getElementById('count').textContent = `${vis.length} of ${Object.keys(pieces).length} pieces`;
+  document.getElementById('flash').disabled = !sel.size || u > CAP;
+}
+
+// ---------- build the PINPAK01 archive in the browser ----------
+async function buildPak() {
+  const names = [...sel]; const enc = new TextEncoder();
+  const blobs = []; let base = 12 + 56 * names.length, off = base; const entries = [];
+  for (let i = 0; i < names.length; i++) {
+    const n = names[i], p = pieces[n]; log(`fetching ${n} (${i+1}/${names.length})`, i > 0); prog(i / names.length * 0.3);
+    const bg = p.bg ? new Uint8Array(await (await fetch(`data/${n}.bg`)).arrayBuffer()) : new Uint8Array(0);
+    const dl = new Uint8Array(await (await fetch(`data/${n}.dlt`)).arrayBuffer());
+    const e = new Uint8Array(56); e.set(enc.encode(n).slice(0, 31), 0);
+    const dv = new DataView(e.buffer);
+    dv.setUint32(32, p.frames, true); dv.setUint32(36, p.loop ? 1 : 0, true);
+    dv.setUint32(40, off, true); dv.setUint32(44, bg.length, true); off += bg.length;
+    dv.setUint32(48, off, true); dv.setUint32(52, dl.length, true); off += dl.length;
+    entries.push(e); blobs.push(bg, dl);
+  }
+  const out = new Uint8Array(off); out.set(enc.encode('PINPAK01'), 0); new DataView(out.buffer).setUint32(8, names.length, true);
+  let pos = 12; for (const e of entries) { out.set(e, pos); pos += 56; } for (const b of blobs) { out.set(b, pos); pos += b.length; }
+  return out;
+}
+window.download = async () => { const pak = await buildPak(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([pak])); a.download = 'pin_archive.bin'; a.click(); log(`saved pin_archive.bin (${fmt(pak.length)}) — flash at 0x310000`); prog(0); };
+
+// ---------- flash over Web Serial with esptool-js ----------
+window.flash = async () => {
+  if (!navigator.serial) { log('Web Serial not available — use Chrome or Edge on a computer.'); return; }
+  const btn = document.getElementById('flash'); btn.disabled = true;
+  let transport;
+  try {
+    const files = [];
+    if (document.getElementById('withfw').checked) {
+      for (const [path, addr] of FW) { const r = await fetch(path); if (!r.ok) throw new Error(`missing ${path}`); files.push({ data: new Uint8Array(await r.arrayBuffer()), address: addr }); }
+    }
+    const pak = await buildPak(); files.push({ data: pak, address: PAK_OFF });
+    log('choose the pin\'s serial port in the popup…');
+    const port = await navigator.serial.requestPort();
+    transport = new Transport(port, true);
+    const loader = new ESPLoader({ transport, baudrate: 460800, romBaudrate: 115200, terminal: { clean() {}, writeLine(s) { log(s); }, write(s) {} } });
+    const chip = await loader.main(); log(`connected: ${chip}`);
+    const total = files.reduce((a, f) => a + f.data.length, 0); let done = 0, lastIdx = -1, lastW = 0;
+    await loader.writeFlash({ fileArray: files, flashSize: 'keep', flashMode: 'keep', flashFreq: 'keep', eraseAll: false, compress: true,
+      reportProgress(idx, written, totalF) { if (idx !== lastIdx) { done += lastW; lastIdx = idx; lastW = 0; } lastW = written; prog(0.3 + 0.7 * (done + written) / total); log(`writing 0x${files[idx].address.toString(16)}  ${Math.round(written / totalF * 100)}%`, true); },
+      calculateMD5Hash: image => CryptoJS.MD5(CryptoJS.lib.WordArray.create(image)).toString() });
+    log('done — resetting pin'); prog(1);
+    try { await loader.after('hard_reset'); } catch { try { await transport.setDTR(false); await transport.setRTS(true); await new Promise(r => setTimeout(r, 100)); await transport.setRTS(false); } catch {} }
+    log('✓ flashed. If the screen stays dark, tap RESET on the board.');
+  } catch (e) { log('error: ' + (e.message || e)); log('tip: put the board in download mode (hold BOOT, tap RESET, release BOOT) and try again.'); }
+  finally { try { await transport?.disconnect(); } catch {} btn.disabled = false; setTimeout(() => prog(0), 1500); }
+};
+init();
+</script>
+</body>
+</html>
