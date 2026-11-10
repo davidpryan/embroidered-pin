@@ -8,11 +8,13 @@
 extern uint16_t *frameBuf;
 #define GW 240
 #define GH 240
-#define GEN_COUNT 22
+#define GEN_COUNT 32
 static const char *GEN_NAMES[GEN_COUNT] = {"gen_wander", "gen_spirograph", "gen_vine", "gen_lissajous", "gen_sashiko_drift",
                                            "gen_patchwork", "gen_mandala", "gen_flowfield", "gen_phyllotaxis", "gen_life_x", "gen_granny_square", "gen_granny_shapes",
                                            "gen_roses_cream", "gen_roses_black", "gen_daisies_cream", "gen_daisies_black", "gen_lavender_cream", "gen_lavender_black",
-                                           "gen_blossom_cream", "gen_blossom_black", "gen_ferns_cream", "gen_ferns_black"};
+                                           "gen_blossom_cream", "gen_blossom_black", "gen_ferns_cream", "gen_ferns_black",
+                                           "gen_asawa_lobes_cream", "gen_asawa_lobes_black", "gen_asawa_nested_cream", "gen_asawa_nested_black", "gen_asawa_tied_cream", "gen_asawa_tied_black",
+                                           "gen_asawa_column_cream", "gen_asawa_column_black", "gen_asawa_loops_cream", "gen_asawa_loops_black"};
 
 // ---------------- palette / colour helpers ----------------
 static inline uint16_t C565(int r, int g, int b) { return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3); }
@@ -340,13 +342,75 @@ static void floraStep() {
   }
 }
 
+
+// ---- 22..31 Asawa wire forms: looped-wire lattices crocheted ring by ring, forms within forms, tied-wire stars
+struct Lobe { float c, r, s; };
+struct Form { Lobe lobes[6]; int nl; float y0, y1, squash; int meridians; uint16_t col; float w; };
+struct Asawa { int kind; bool dark; Form forms[5]; int nf, f; float y, lastY; int hold; bool done;
+               float bx[160], by[160], ba[160], bl[160]; int nb, bdepth, bcur, bnext; uint16_t wire; } AS;
+static float profileR(const Form &F, float y) { float r = 0; for (int i = 0; i < F.nl; i++) { float d = (y - F.lobes[i].c) / F.lobes[i].s; r += F.lobes[i].r * expf(-d * d); } return r; }
+static uint16_t asawaCol(int i) { return AS.dark ? (i == 0 ? C565(246, 246, 242) : C565(214, 214, 208)) : PAL[(i * 2 + 1) % 7]; }
+static float wireW(float w) { return AS.dark ? w * 1.35f : w; }
+static void ringAt(const Form &F, float y, float scale, uint16_t col, float w) {
+  float R = profileR(F, y) * scale; if (R < 1.5f) return; float rz = R * F.squash;
+  for (int k = 0; k < 28; k++) { float a0 = k * 0.2244f, a1 = a0 + 0.2244f; stitch(120 + R * cosf(a0), y + rz * sinf(a0), 120 + R * cosf(a1), y + rz * sinf(a1), wireW(w), k < 14 ? shade(col, 0.82f) : col); }
+}
+static void meridians(const Form &F, float ya, float yb, float scale, uint16_t col, float w) {
+  float Ra = profileR(F, ya) * scale, Rb = profileR(F, yb) * scale;
+  for (int m = 0; m < F.meridians; m++) { float a = 6.2832f * m / F.meridians; bool back = sinf(a) < 0;
+    stitch(120 + Ra * cosf(a), ya + Ra * F.squash * sinf(a), 120 + Rb * cosf(a), yb + Rb * F.squash * sinf(a), wireW(w), back ? shade(col, 0.76f) : col); }
+}
+static void asawaNew(int k) {
+  AS.kind = k / 2; AS.dark = k & 1; uint16_t g = AS.dark ? SOOT : C565(232, 224, 204); fillGround(g, !AS.dark);
+  AS.nf = 0; AS.f = 0; AS.hold = 0; AS.done = false; AS.nb = 0;
+  auto addForm = [](int nl, float yTop, float yBot, float rMin, float rMax, float squash, int mer, uint16_t col, float w) {
+    Form &F = AS.forms[AS.nf++]; F.nl = nl; F.y0 = yTop; F.y1 = yBot; F.squash = squash; F.meridians = mer; F.col = col; F.w = w;
+    for (int i = 0; i < nl; i++) { F.lobes[i].c = yTop + (yBot - yTop) * (i + 0.5f) / nl; F.lobes[i].r = frandr(rMin, rMax); F.lobes[i].s = (yBot - yTop) / nl * frandr(0.42f, 0.55f); } };
+  switch (AS.kind) {
+    case 0: { int nl = random(2, 5); addForm(nl, 26, 226, 34, 62, 0.26f, random(14, 22), asawaCol(0), 1.3f);          // stacked lobes with an inner form in each lobe
+              Form &O = AS.forms[0]; for (int i = 0; i < nl && AS.nf < 5; i++) { Form &I = AS.forms[AS.nf++]; I = O; I.nl = 1; I.lobes[0] = O.lobes[i]; I.lobes[0].r *= frandr(0.42f, 0.55f); I.lobes[0].s *= 0.7f; I.y0 = I.lobes[0].c - I.lobes[0].s * 1.8f; I.y1 = I.lobes[0].c + I.lobes[0].s * 1.8f; I.col = asawaCol(1 + i); I.meridians = 10; I.w = 1.1f; } break; }
+    case 1: { int n = random(3, 5); for (int i = 0; i < n; i++) { float sc = 1 - i * (0.8f / n); addForm(1, 120 - 100 * sc, 120 + 100 * sc, 92 * sc, 98 * sc, 0.3f, 18 - i * 2, asawaCol(i), 1.3f - i * 0.1f); AS.forms[i].lobes[0].s = 100 * sc * 0.62f; } break; }   // nested spheres
+    case 3: { addForm(random(4, 7), 14, 232, 16, 34, 0.24f, random(10, 14), asawaCol(0), 1.2f); break; }                 // hourglass column
+    case 4: { addForm(random(1, 3), 30, 222, 46, 72, 0.28f, random(12, 16), asawaCol(0), 1.3f); break; }                 // loop vessel
+    default: {                                                                                                             // tied wire: dichotomous branching star
+      AS.wire = AS.dark ? C565(246, 246, 242) : PAL[random(0, 7)]; int spokes = random(5, 9); AS.bdepth = random(4, 6); AS.nb = 0; AS.bcur = 0;
+      for (int i = 0; i < spokes; i++) { AS.bx[AS.nb] = 120; AS.by[AS.nb] = 120; AS.ba[AS.nb] = 6.2832f * i / spokes + frandr(-0.1f, 0.1f); AS.bl[AS.nb] = frandr(30, 42); AS.nb++; }
+      AS.bnext = AS.nb; AS.f = 0; break; }
+  }
+  AS.y = AS.forms[0].y0; AS.lastY = AS.y;
+  if (AS.kind != 2) stitch(120, 0, 120, AS.forms[0].y0, 1.1f, asawaCol(0));   // hanging wire
+}
+static void asawaStep() {
+  if (AS.done) { if (++AS.hold > 220) { fadeToGround(255); asawaNew(AS.kind * 2 + AS.dark); } return; }
+  if (AS.kind == 2) {   // grow one generation of branches per few steps
+    if (AS.bcur >= AS.bnext) { if (AS.f >= AS.bdepth || AS.nb >= 150) { AS.done = true; return; } AS.f++; AS.bcur = AS.bnext; AS.bnext = AS.nb; }
+    // draw one branch, then spawn its children
+    int i = AS.bcur++; float ex = AS.bx[i] + cosf(AS.ba[i]) * AS.bl[i], ey = AS.by[i] + sinf(AS.ba[i]) * AS.bl[i];
+    if (!inCircle(ex, ey, 114)) return;
+    stitch(AS.bx[i], AS.by[i], ex, ey, wireW(1.7f - AS.f * 0.14f), AS.wire); knot(ex, ey, 1.4f, shade(AS.wire, 0.85f));
+    int kids = frand() < 0.75f ? 2 : 3;
+    for (int k = 0; k < kids && AS.nb < 160; k++) { AS.bx[AS.nb] = ex; AS.by[AS.nb] = ey; AS.ba[AS.nb] = AS.ba[i] + (k - (kids - 1) / 2.0f) * frandr(0.45f, 0.7f); AS.bl[AS.nb] = AS.bl[i] * frandr(0.62f, 0.78f); AS.nb++; }
+    return;
+  }
+  Form &F = AS.forms[AS.f]; float sc = 1;
+  if (AS.kind == 4) {      // explicit crocheted loops instead of a lattice
+    float R = profileR(F, AS.y), rz = R * F.squash; int M = max(6, (int)(R / 5));
+    for (int m = 0; m < M; m++) { float a = 6.2832f * (m + ((int)(AS.y / 8) % 2) * 0.5f) / M; float cx = 120 + R * cosf(a), cy = AS.y + rz * sinf(a); uint16_t c = sinf(a) < 0 ? shade(F.col, 0.72f) : F.col;
+      for (int k = 0; k < 8; k++) { float u = k * 0.785f, v = u + 0.785f; stitch(cx + 3.4f * cosf(u) * cosf(a) * 0.6f - 0 , cy + 4.2f * sinf(u), cx + 3.4f * cosf(v) * cosf(a) * 0.6f, cy + 4.2f * sinf(v), wireW(1.3f), c); } }
+    AS.y += 7;
+  } else {
+    ringAt(F, AS.y, sc, F.col, F.w); if (AS.y > F.y0) meridians(F, AS.lastY, AS.y, sc, F.col, F.w * 0.9f); AS.lastY = AS.y; AS.y += 8;
+  }
+  if (AS.y > F.y1) { AS.f++; if (AS.f >= AS.nf) AS.done = true; else { AS.y = AS.forms[AS.f].y0; AS.lastY = AS.y; } }
+}
+
 // ---------------- dispatch ----------------
 static void genInit(int id) { G.id = id; G.steps = 0;
   switch (id) { case 0: initWander(); break; case 1: initSpiro(); break; case 2: initVine(); break; case 3: initLiss(); break; case 4: initSash(); drawSash(); break;
-                case 5: initPatch(); break; case 6: initMand(); break; case 7: initFlow(); break; case 8: initPhyl(); break; case 9: initLife(); break; case 10: grannyNew(false); break; case 11: grannyNew(true); break; default: floraInit(id - 12); } }
+                case 5: initPatch(); break; case 6: initMand(); break; case 7: initFlow(); break; case 8: initPhyl(); break; case 9: initLife(); break; case 10: grannyNew(false); break; case 11: grannyNew(true); break; default: if (id >= 22) asawaNew(id - 22); else floraInit(id - 12); } }
 static void genStep() {
   switch (G.id) { case 0: stepWander(); break; case 1: stepSpiro(); break; case 2: stepVine(); break; case 3: stepLiss(); break; case 4: stepSash(); break;
-                  case 5: stepPatch(); break; case 6: stepMand(); break; case 7: stepFlow(); break; case 8: stepPhyl(); break; case 9: stepLife(); break; case 10: grannyStep(false); break; case 11: grannyStep(true); break; default: floraStep(); }
+                  case 5: stepPatch(); break; case 6: stepMand(); break; case 7: stepFlow(); break; case 8: stepPhyl(); break; case 9: stepLife(); break; case 10: grannyStep(false); break; case 11: grannyStep(true); break; default: if (G.id >= 22) asawaStep(); else floraStep(); }
   G.steps++;
 }
 static int genIndex(const char *name) { for (int i = 0; i < GEN_COUNT; i++) if (strcmp(name, GEN_NAMES[i]) == 0) return i; return -1; }

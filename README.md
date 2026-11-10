@@ -2,10 +2,10 @@
 
 A wearable pin built on the Waveshare ESP32-S3-Touch-LCD-1.28 (1.28" round display, touch, IMU, LiPo) that plays
 stitched-looking animations: embroidered insects, live sashiko and cross-stitch, granny squares, Tim Burton
-patchwork, Japanese wagara, and more — 122 pre-rendered pieces plus 22 **generative** patterns that are
+patchwork, Japanese wagara, and more — 122 pre-rendered pieces plus 32 **generative** patterns that are
 computed on the pin itself (`firmware/pin_firmware/generative.h`) and never repeat: wandering seams, spirographs,
 growing vines, drifting sashiko, a Voronoi patchwork, flow-field stitches, phyllotaxis knots, cross-stitch Life,
-two that crochet a fresh granny square or shape every few minutes, and ten growing-floral beds (roses, daisies, lavender, blossom branches, ferns — each on cream and on black). Generative pieces cost no flash.
+two that crochet a fresh granny square or shape every few minutes, and ten growing-floral beds (roses, daisies, lavender, blossom branches, ferns — each on cream and on black), and ten Ruth Asawa–inspired looped-wire forms — stacked lobes, nested spheres, tied-wire stars, hourglass columns, crocheted loop vessels — crocheted ring by ring in colored string on cream or white wire on black. Generative pieces cost no flash.
 
 **Gallery + flasher:** https://davidpryan.github.io/embroidered-pin/
 

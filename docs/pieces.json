@@ -1028,5 +1028,85 @@
 "bg": false,
 "bytes": 0,
 "gen": true
+},
+"gen_asawa_lobes_cream": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_lobes_black": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_nested_cream": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_nested_black": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_tied_cream": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_tied_black": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_column_cream": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_column_black": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_loops_cream": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_loops_black": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
 }
 }
