@@ -8,13 +8,14 @@
 extern uint16_t *frameBuf;
 #define GW 240
 #define GH 240
-#define GEN_COUNT 32
+#define GEN_COUNT 42
 static const char *GEN_NAMES[GEN_COUNT] = {"gen_wander", "gen_spirograph", "gen_vine", "gen_lissajous", "gen_sashiko_drift",
                                            "gen_patchwork", "gen_mandala", "gen_flowfield", "gen_phyllotaxis", "gen_life_x", "gen_granny_square", "gen_granny_shapes",
                                            "gen_roses_cream", "gen_roses_black", "gen_daisies_cream", "gen_daisies_black", "gen_lavender_cream", "gen_lavender_black",
                                            "gen_blossom_cream", "gen_blossom_black", "gen_ferns_cream", "gen_ferns_black",
                                            "gen_asawa_lobes_cream", "gen_asawa_lobes_black", "gen_asawa_nested_cream", "gen_asawa_nested_black", "gen_asawa_tied_cream", "gen_asawa_tied_black",
-                                           "gen_asawa_column_cream", "gen_asawa_column_black", "gen_asawa_loops_cream", "gen_asawa_loops_black"};
+                                           "gen_asawa_column_cream", "gen_asawa_column_black", "gen_asawa_loops_cream", "gen_asawa_loops_black",
+                                           "gen_turing", "gen_truchet", "gen_flock", "gen_dla", "gen_packing", "gen_subdivide", "gen_contours", "gen_attractor", "gen_harmonograph", "gen_molnar"};
 
 // ---------------- palette / colour helpers ----------------
 static inline uint16_t C565(int r, int g, int b) { return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3); }
@@ -31,11 +32,12 @@ static float frandr(float a, float b) { return a + (b - a) * frand(); }
 // ---------------- drawing primitives ----------------
 static inline void px(int x, int y, uint16_t c) { if ((unsigned)x < GW && (unsigned)y < GH) frameBuf[y * GW + x] = c; }
 static void disc(float cx, float cy, float r, uint16_t c) {
+  if (!(r > 0 && r < 200) || !(fabsf(cx) < 1000) || !(fabsf(cy) < 1000)) return;
   int x0 = floorf(cx - r), x1 = ceilf(cx + r), y0 = floorf(cy - r), y1 = ceilf(cy + r); float r2 = r * r;
   for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++) { float dx = x + 0.5f - cx, dy = y + 0.5f - cy; if (dx * dx + dy * dy <= r2) px(x, y, c); }
 }
 static void thick(float x0, float y0, float x1, float y1, float w, uint16_t c) {
-  float dx = x1 - x0, dy = y1 - y0, L = sqrtf(dx * dx + dy * dy); int n = max(1, int(L / 0.6f));
+  float dx = x1 - x0, dy = y1 - y0, L = sqrtf(dx * dx + dy * dy); if (!(L < 600)) return; int n = max(1, int(L / 0.6f));
   for (int i = 0; i <= n; i++) { float t = (float)i / n; disc(x0 + dx * t, y0 + dy * t, w * 0.5f, c); }
 }
 // a thread: shadow, body, highlight ridge
@@ -75,6 +77,10 @@ struct Gen {
   float branchX[40], branchY[40], branchA[40], branchL[40]; int branches;
 };
 static Gen G;
+static bool genComplete = false;   // composition finished: hold (or, in slow mode, dissolve and begin again)
+static bool genEvolving = false;   // never 'finishes' — may be switched away from at any time
+static bool genSlow = false;
+static int  slowFade = 0;
 static uint16_t palRand() { return PAL[random(0, 7)]; }
 
 // ---- 0 wandering seam: a running stitch with momentum, re-entering with a new colour
@@ -101,13 +107,12 @@ static void stepSpiro() {
     G.i++;
     if (G.i % 500 == 0) G.pcol = palRand();
   }
-  if (G.i > 3000 * G.n / 3) { fadeToGround(90); G.a = random(40, 100); G.b = random(7, 45); G.c = random(10, 70); G.i = 0; }
-  else if (G.steps % 30 == 0) fadeToGround(4);
+  if (G.i > 1000 * G.n) genComplete = true;
 }
 // ---- 2 vine: branching growth with leaves and knot flowers
-static void initVine() { fillGround(C565(232, 224, 204), true); G.branches = 1; G.branchX[0] = 120 + frandr(-40, 40); G.branchY[0] = 236; G.branchA[0] = -1.57f + frandr(-0.3f, 0.3f); G.branchL[0] = 1; }
+static void initVine() { fillGround(C565(232, 224, 204), true); G.branches = 1; float x = 120 + frandr(-40, 40); G.branchX[0] = x; G.branchY[0] = 120 + sqrtf(108 * 108 - (x - 120) * (x - 120)) - 3; G.branchA[0] = -1.57f + frandr(-0.3f, 0.3f); G.branchL[0] = 1; }
 static void stepVine() {
-  if (G.branches == 0 || G.steps % 400 == 399) { fadeToGround(60); G.branches = 1; G.branchX[0] = frandr(30, 210); G.branchY[0] = frandr(30, 210); G.branchA[0] = frandr(0, 6.28f); G.branchL[0] = 1; }
+  if (G.branches == 0) { genComplete = true; return; }
   for (int bi = 0; bi < G.branches; bi++) {
     float &x = G.branchX[bi], &y = G.branchY[bi], &a = G.branchA[bi];
     a += frandr(-0.35f, 0.35f);
@@ -171,7 +176,7 @@ static void stepMand() {
     float a = 6.2832f * k / count - 1.57f + G.f;
     for (int o = -1; o <= 1; o++) { float aa = a + o * 0.05f * (12.0f / G.i); stitch(120 + ri * cosf(a), 120 + ri * sinf(a), 120 + ro * cosf(aa), 120 + ro * sinf(aa), 2.6f, G.pcol); }
     G.e += 1;
-  } else { G.i++; G.e = 0; G.pcol = palRand(); G.f += frandr(-0.2f, 0.2f); if (ro > 110) { fadeToGround(120); G.i = 1; G.n = random(5, 9); } }
+  } else { G.i++; G.e = 0; G.pcol = palRand(); G.f += frandr(-0.2f, 0.2f); if (ro > 110) genComplete = true; }
 }
 // ---- 7 flow field: short stitches following slowly rotating value noise
 static float vnoise(float x, float y) {
@@ -196,7 +201,7 @@ static void initPhyl() { uint16_t g = random(2) ? SOOT : C565(232, 224, 204); fi
 static void stepPhyl() {
   for (int k = 0; k < 2; k++) {
     float r = G.b * sqrtf((float)G.i), a = G.i * G.a;
-    if (r > 108) { fadeToGround(140); G.i = 0; G.a = 2.39996f + frandr(-0.03f, 0.03f); G.b = frandr(5.5f, 7.5f); G.col = random(0, 7); return; }
+    if (r > 108) { genComplete = true; return; }
     knot(120 + r * cosf(a), 120 + r * sinf(a), 2.2f + r / 60, PAL[(G.col + G.i / 40) % 7]); G.i++;
   }
 }
@@ -241,7 +246,7 @@ static void grannyNew(bool shapes) {
 }
 static void T(float x, float y, float rot, float &ox, float &oy) { ox = 120 + x * cosf(rot) - y * sinf(rot); oy = 120 + x * sinf(rot) + y * cosf(rot); }
 static void grannyStep(bool shapes) {
-  if (GR.done) { if (++GR.holdSteps > 250) { fadeToGround(255); grannyNew(shapes); } return; }
+  if (GR.done) { genComplete = true; return; }
   uint16_t col = GR.pal[GR.n % 8];
   if (GR.sides == 0) {   // circular rounds
     float ri = GR.inner0 + GR.step * (GR.n - 1), ro = ri + GR.step - 2; int count = 6 + 5 * GR.n;
@@ -337,7 +342,7 @@ static void floraStep() {
   int blooming = 0;
   for (int i = 0; i < FL.nfl; i++) if (FL.fl[i].alive) { blooming++; if (!bloom(FL.fl[i])) FL.fl[i].alive = false; if (blooming >= 3) break; }
   if (alive == 0 && blooming == 0) {
-    if (++FL.quiet > 120) { fadeToGround(255); floraInit(FL.kind * 2 + FL.dark); }
+    if (++FL.quiet > 40) genComplete = true;
     else if (FL.quiet == 1 && FL.ntips < 20 && frand() < 0.7f) { FL.quiet = 0; if (FL.kind == 3) addTip(frandr(60, 180), frandr(60, 180), frandr(-0.6f, 0.6f)); else addGroundTip(frandr(40, 200)); }
   }
 }
@@ -381,7 +386,7 @@ static void asawaNew(int k) {
   if (AS.kind != 2) stitch(120, 0, 120, AS.forms[0].y0, 1.1f, asawaCol(0));   // hanging wire
 }
 static void asawaStep() {
-  if (AS.done) { if (++AS.hold > 220) { fadeToGround(255); asawaNew(AS.kind * 2 + AS.dark); } return; }
+  if (AS.done) { genComplete = true; return; }
   if (AS.kind == 2) {   // grow one generation of branches per few steps
     if (AS.bcur >= AS.bnext) { if (AS.f >= AS.bdepth || AS.nb >= 150) { AS.done = true; return; } AS.f++; AS.bcur = AS.bnext; AS.bnext = AS.nb; }
     // draw one branch, then spawn its children
@@ -404,13 +409,162 @@ static void asawaStep() {
   if (AS.y > F.y1) { AS.f++; if (AS.f >= AS.nf) AS.done = true; else { AS.y = AS.forms[AS.f].y0; AS.lastY = AS.y; } }
 }
 
+
+// ---- 32..41 core generative techniques, stitched
+static uint16_t randGround() { uint16_t g = random(2) ? SOOT : C565(232, 224, 204); fillGround(g, g != SOOT); return g; }
+static uint16_t threadFor(uint16_t g) { return g == SOOT ? (random(3) ? palRand() : CREAM) : palRand(); }
+
+// 32 reaction-diffusion (Gray-Scott) on a 60x60 grid, high-V cells become knots
+struct RD { float U[3600], V[3600]; float f, k; uint16_t col; } RDs;
+static void initTuring() { uint16_t g = randGround(); RDs.col = threadFor(g); RDs.f = frandr(0.030f, 0.055f); RDs.k = frandr(0.059f, 0.064f);
+  for (int i = 0; i < 3600; i++) { RDs.U[i] = 1; RDs.V[i] = 0; } for (int n = 0; n < 12; n++) { int cx = random(10, 50), cy = random(10, 50); for (int y = -2; y <= 2; y++) for (int x = -2; x <= 2; x++) RDs.V[(cy + y) * 60 + cx + x] = 1; } }
+static void stepTuring() {
+  for (int it = 0; it < 6; it++) {
+    static float nU[3600], nV[3600];
+    for (int y = 0; y < 60; y++) for (int x = 0; x < 60; x++) { int i = y * 60 + x; int l = y * 60 + (x + 59) % 60, r = y * 60 + (x + 1) % 60, u = ((y + 59) % 60) * 60 + x, d = ((y + 1) % 60) * 60 + x;
+      float lu = RDs.U[l] + RDs.U[r] + RDs.U[u] + RDs.U[d] - 4 * RDs.U[i], lv = RDs.V[l] + RDs.V[r] + RDs.V[u] + RDs.V[d] - 4 * RDs.V[i]; float uvv = RDs.U[i] * RDs.V[i] * RDs.V[i];
+      nU[i] = constrain(RDs.U[i] + 0.19f * lu - uvv + RDs.f * (1 - RDs.U[i]), 0.0f, 1.0f); nV[i] = constrain(RDs.V[i] + 0.09f * lv + uvv - (RDs.f + RDs.k) * RDs.V[i], 0.0f, 1.0f); }
+    memcpy(RDs.U, nU, sizeof nU); memcpy(RDs.V, nV, sizeof nV);
+  }
+  if (G.steps % 3) return;
+  fillGround(ground, ground != SOOT);
+  for (int y = 0; y < 60; y++) for (int x = 0; x < 60; x++) { float v = RDs.V[y * 60 + x]; float px_ = x * 4 + 2, py_ = y * 4 + 2; if (v > 0.25f && inCircle(px_, py_, 114)) knot(px_, py_, 1.2f + v * 2.2f, shade(RDs.col, 0.8f + v * 0.5f)); }
+  if (G.steps > 700) genComplete = true;
+}
+// 33 Truchet tiles: quarter-arc tiles, random flips rippling through
+static uint8_t TR[64];
+static void drawTruchetTile(int i, int j, uint16_t col) { const float c = 30; float x = i * c, y = j * c; bool f = TR[j * 8 + i];
+  for (int k = 0; k < 10; k++) { float a0 = k * 0.157f, a1 = a0 + 0.157f; float cx0 = f ? x : x + c, cy0 = y, cx1 = f ? x + c : x, cy1 = y + c; float s0 = f ? 0 : 1.5708f, s1 = f ? 3.1416f : 4.7124f;
+    stitch(cx0 + c / 2 * cosf(s0 + a0), cy0 + c / 2 * sinf(s0 + a0), cx0 + c / 2 * cosf(s0 + a1), cy0 + c / 2 * sinf(s0 + a1), 2.4f, col);
+    stitch(cx1 + c / 2 * cosf(s1 + a0), cy1 + c / 2 * sinf(s1 + a0), cx1 + c / 2 * cosf(s1 + a1), cy1 + c / 2 * sinf(s1 + a1), 2.4f, col); } }
+static void initTruchet() { uint16_t g = randGround(); G.pcol = threadFor(g); for (int i = 0; i < 64; i++) TR[i] = random(2); for (int j = 0; j < 8; j++) for (int i = 0; i < 8; i++) drawTruchetTile(i, j, G.pcol); }
+static void stepTruchet() { if (G.steps % 6) return; int i = random(0, 8), j = random(0, 8); TR[j * 8 + i] ^= 1;
+  // redraw the tile's square with ground then arcs (neighbours' arcs end at tile edges so nothing else is disturbed)
+  for (int y = j * 30; y < j * 30 + 30; y++) for (int x = i * 30; x < i * 30 + 30; x++) if (inCircle(x, y, 121)) frameBuf[y * GW + x] = ground;
+  drawTruchetTile(i, j, G.pcol); if (G.steps % 600 == 0) G.pcol = threadFor(ground); }
+// 34 flocking: boids leave thread trails
+struct Boid { float x, y, vx, vy; uint16_t c; } BD[26];
+static void initFlock() { uint16_t g = randGround(); for (auto &b : BD) { b.x = frandr(60, 180); b.y = frandr(60, 180); float a = frandr(0, 6.28f); b.vx = cosf(a) * 2; b.vy = sinf(a) * 2; b.c = threadFor(g); } }
+static void stepFlock() {
+  for (auto &b : BD) { float cx = 0, cy = 0, ax = 0, ay = 0, sx = 0, sy = 0; int n = 0;
+    for (auto &o : BD) { if (&o == &b) continue; float dx = o.x - b.x, dy = o.y - b.y, d2 = dx * dx + dy * dy; if (d2 < 1600) { cx += o.x; cy += o.y; ax += o.vx; ay += o.vy; n++; if (d2 < 120) { sx -= dx; sy -= dy; } } }
+    if (n) { b.vx += ((cx / n - b.x) * 0.004f + (ax / n - b.vx) * 0.05f + sx * 0.03f); b.vy += ((cy / n - b.y) * 0.004f + (ay / n - b.vy) * 0.05f + sy * 0.03f); }
+    float dx = 120 - b.x, dy = 120 - b.y, d = sqrtf(dx * dx + dy * dy); if (d > 90) { b.vx += dx / d * 0.12f; b.vy += dy / d * 0.12f; }
+    float sp = sqrtf(b.vx * b.vx + b.vy * b.vy); if (sp > 2.4f) { b.vx *= 2.4f / sp; b.vy *= 2.4f / sp; } if (sp < 1.2f) { b.vx *= 1.3f; b.vy *= 1.3f; }
+    float nx = b.x + b.vx, ny = b.y + b.vy; if (inCircle(nx, ny, 112)) stitch(b.x, b.y, nx, ny, 1.6f, b.c); b.x = nx; b.y = ny; }
+  if (G.steps % 6 == 0) fadeToGround(7);
+}
+// 35 diffusion-limited aggregation: walkers stick to a growing crystal of knots
+static uint8_t OCC[GW * GH / 8];
+static inline bool occ(int x, int y) { return (unsigned)x < GW && (unsigned)y < GH && (OCC[(y * GW + x) >> 3] >> (x & 7)) & 1; }
+static inline void setOcc(int x, int y) { OCC[(y * GW + x) >> 3] |= 1 << (x & 7); }
+static void initDLA() { uint16_t g = randGround(); G.pcol = threadFor(g); memset(OCC, 0, sizeof OCC); int seeds = random(1, 4); G.a = 6; for (int i = 0; i < seeds; i++) { int x = 120 + random(-30, 31), y = 120 + random(-30, 31); setOcc(x, y); knot(x, y, 2.2f, G.pcol); G.a = max(G.a, sqrtf((x - 120.f) * (x - 120.f) + (y - 120.f) * (y - 120.f)) + 6); } G.i = 0; }
+static void stepDLA() {
+  for (int w = 0; w < 10; w++) { float a = frandr(0, 6.28f), sr = min(108.0f, G.a + 4); int x = 120 + sr * cosf(a), y = 120 + sr * sinf(a);
+    for (int t = 0; t < 2500; t++) { x += random(-1, 2); y += random(-1, 2); if (!inCircle(x, y, min(110.0f, G.a + 14))) { a = frandr(0, 6.28f); x = 120 + sr * cosf(a); y = 120 + sr * sinf(a); }
+      if (occ(x + 1, y) || occ(x - 1, y) || occ(x, y + 1) || occ(x, y - 1)) { setOcc(x, y); float d = sqrtf((x - 120.f) * (x - 120.f) + (y - 120.f) * (y - 120.f)); knot(x, y, 1.6f + (d > 60 ? 0.6f : 0), shade(G.pcol, 0.75f + d / 200)); G.a = max(G.a, d + 6); G.i++; break; } } }
+  if (G.i > 2200 || G.a > 112) genComplete = true;
+}
+// 36 circle packing: stitched rings packed until the disc is full
+struct Circ { float x, y, r; } CP[140]; static int ncp;
+static void initPack() { uint16_t g = randGround(); ncp = 0; G.col = random(0, 7); }
+static void stepPack() {
+  for (int tries = 0; tries < 40 && ncp < 140; tries++) { float a = frandr(0, 6.28f), rr = sqrtf(frand()) * 106; float x = 120 + rr * cosf(a), y = 120 + rr * sinf(a); float r = 110 - rr;
+    for (int i = 0; i < ncp; i++) { float d = sqrtf((x - CP[i].x) * (x - CP[i].x) + (y - CP[i].y) * (y - CP[i].y)) - CP[i].r; r = min(r, d); }
+    if (r < 3.5f) continue; r = min(r, frandr(10, 34)) - 1.2f; CP[ncp++] = {x, y, r};
+    uint16_t c = PAL[(G.col + ncp) % 7]; int segs = max(10, (int)(r * 1.3f));
+    for (int k = 0; k < segs; k++) { float a0 = 6.2832f * k / segs, a1 = a0 + 6.2832f / segs; stitch(x + r * cosf(a0), y + r * sinf(a0), x + r * cosf(a1), y + r * sinf(a1), r > 14 ? 2.6f : 1.8f, c); }
+    if (r > 9) for (int k = 0; k < segs / 2; k++) { float a0 = 6.2832f * k / (segs / 2), a1 = a0 + 6.2832f / (segs / 2); stitch(x + r * 0.55f * cosf(a0), y + r * 0.55f * sinf(a0), x + r * 0.55f * cosf(a1), y + r * 0.55f * sinf(a1), 1.6f, shade(c, 0.8f)); }
+    if (r <= 9) knot(x, y, r * 0.45f, shade(c, 1.1f));
+    break; }
+  if (ncp >= 140 || G.steps > 600) genComplete = true;
+}
+// 37 recursive subdivision: a quilt that keeps re-splitting itself
+struct Rect { float x, y, w, h; } RQ[40]; static int nrq;
+static void drawRect(const Rect &R, uint16_t c) { float ang = random(2) ? 45 : 135; float ca = cosf(ang * 0.01745f), sa = sinf(ang * 0.01745f);
+  for (int y = R.y; y < R.y + R.h; y++) for (int x = R.x; x < R.x + R.w; x++) if (inCircle(x, y, 118)) { float sdist = x * ca + y * sa; int stripe = ((int)floorf(sdist / 1.6f)) & 1; px(x, y, stripe ? c : shade(c, 0.84f)); }
+  float x1 = R.x + R.w, y1 = R.y + R.h; dashes(R.x, R.y, x1, R.y, 4, 2.5f, 1.4f, CREAM); dashes(x1, R.y, x1, y1, 4, 2.5f, 1.4f, CREAM); dashes(x1, y1, R.x, y1, 4, 2.5f, 1.4f, CREAM); dashes(R.x, y1, R.x, R.y, 4, 2.5f, 1.4f, CREAM); }
+static void initSub() { fillGround(SOOT, false); nrq = 1; RQ[0] = {0, 0, 240, 240}; drawRect(RQ[0], palRand()); }
+static void stepSub() { if (G.steps % 14) return;
+  if (nrq >= 36) { genComplete = true; return; }
+  int i = random(0, nrq); Rect R = RQ[i]; if (R.w < 40 && R.h < 40) return; bool vert = R.w > R.h ? true : (R.h > R.w ? false : random(2)); float t = frandr(0.35f, 0.65f);
+  Rect A = R, B = R; if (vert) { A.w = R.w * t; B.x = R.x + A.w; B.w = R.w - A.w; } else { A.h = R.h * t; B.y = R.y + A.h; B.h = R.h - A.h; }
+  RQ[i] = A; RQ[nrq++] = B; drawRect(A, palRand()); drawRect(B, palRand()); }
+// 38 noise contours: marching-squares topography that slowly drifts
+static void initContours() { uint16_t g = randGround(); G.pcol = threadFor(g); G.a = frandr(0, 50); G.b = frandr(0, 50); G.c = 0; }
+static void stepContours() { if (G.steps % 4) return;
+  fillGround(ground, ground != SOOT); const int N = 40; const float cs = 240.0f / N; static float F[41 * 41];
+  for (int j = 0; j <= N; j++) for (int i = 0; i <= N; i++) F[j * 41 + i] = vnoise(i * cs / 70 + G.a, j * cs / 70 + G.b + G.c) + 0.5f * vnoise(i * cs / 30 + G.a * 2, j * cs / 30 + G.b);
+  for (int lv = 0; lv < 7; lv++) { float iso = 0.25f + lv * 0.17f; uint16_t c = lv % 2 ? G.pcol : shade(G.pcol, 0.8f);
+    for (int j = 0; j < N; j++) for (int i = 0; i < N; i++) { float a = F[j * 41 + i], b = F[j * 41 + i + 1], cc = F[(j + 1) * 41 + i + 1], d = F[(j + 1) * 41 + i]; int code = (a > iso) | (b > iso) << 1 | (cc > iso) << 2 | (d > iso) << 3; if (code == 0 || code == 15) continue;
+      float x0 = i * cs, y0 = j * cs; auto lerp = [&](float p, float q) { return (iso - p) / (q - p + 1e-6f); };
+      float ex[4][2] = {{x0 + cs * lerp(a, b), y0}, {x0 + cs, y0 + cs * lerp(b, cc)}, {x0 + cs * lerp(d, cc), y0 + cs}, {x0, y0 + cs * lerp(a, d)}};
+      static const int8_t tbl[16][4] = {{-1},{3,0,-1},{0,1,-1},{3,1,-1},{1,2,-1},{3,0,1,2},{0,2,-1},{3,2,-1},{2,3,-1},{2,0,-1},{0,1,2,3},{2,1,-1},{1,3,-1},{1,0,-1},{0,3,-1},{-1}};
+      for (int e = 0; e < 4 && tbl[code][e] >= 0; e += 2) { int p = tbl[code][e], q = tbl[code][e + 1]; if (inCircle(ex[p][0], ex[p][1], 114) && inCircle(ex[q][0], ex[q][1], 114)) stitch(ex[p][0], ex[p][1], ex[q][0], ex[q][1], 1.7f, c); } } }
+  G.c += 0.012f; if (G.steps % 600 == 599) { G.pcol = threadFor(ground); } }
+// 39 strange attractor (Clifford): points accumulate as knots, parameters re-rolled when it goes stale
+static void initAttr() { uint16_t g = randGround(); G.pcol = threadFor(g);
+  for (int tries = 0; tries < 40; tries++) {
+    G.a = (random(2) ? 1 : -1) * frandr(1.3f, 2.0f); G.b = (random(2) ? 1 : -1) * frandr(1.3f, 2.0f); G.c = (random(2) ? 1 : -1) * frandr(0.6f, 1.9f); G.d = (random(2) ? 1 : -1) * frandr(0.6f, 1.9f);
+    float x = 0.1f, y = 0.1f, mnx = 9, mxx = -9, mny = 9, mxy = -9;
+    for (int i = 0; i < 400; i++) { float nx = sinf(G.a * y) + G.c * cosf(G.a * x), ny = sinf(G.b * x) + G.d * cosf(G.b * y); x = nx; y = ny; if (i > 50) { mnx = min(mnx, x); mxx = max(mxx, x); mny = min(mny, y); mxy = max(mxy, y); } }
+    if (mxx - mnx > 1.2f && mxy - mny > 1.2f) break;                 // spread out = a real attractor, not a fixed point or short cycle
+  }
+  G.x = 0.1f; G.y = 0.1f; G.i = 0; }
+static void stepAttr() {
+  for (int k = 0; k < 40; k++) { float nx = sinf(G.a * G.y) + G.c * cosf(G.a * G.x), ny = sinf(G.b * G.x) + G.d * cosf(G.b * G.y); G.x = nx; G.y = ny;
+    float px_ = 120 + nx * 42, py_ = 120 + ny * 42; if (inCircle(px_, py_, 112) && G.i > 20) knot(px_, py_, 1.3f, shade(G.pcol, 0.8f + 0.4f * frand())); G.i++; }
+  if (G.steps > 450) genComplete = true;
+}
+// 40 harmonograph: two damped pendulums trace a single thread
+static float HF[4], HP[4];
+static void initHarm() { uint16_t g = randGround(); G.pcol = threadFor(g);
+  int base = random(1, 4); HF[0] = base; HF[1] = base * (random(2) ? 2 : 3) + frandr(-0.02f, 0.02f); HF[2] = random(1, 4) + frandr(-0.02f, 0.02f); HF[3] = HF[2] * (random(2) ? 2 : 1.5f) + frandr(-0.02f, 0.02f);
+  for (int i = 0; i < 4; i++) HP[i] = frandr(0, 6.28f);
+  G.e = frandr(0.00035f, 0.0008f); G.i = 0; G.x = G.y = 0; }
+static void stepHarm() {
+  for (int k = 0; k < 8; k++) { float t = G.i * 0.03f, damp = expf(-G.e * G.i);
+    float x = 120 + damp * (62 * sinf(HF[0] * t + HP[0]) + 40 * sinf(HF[1] * t + HP[1])), y = 120 + damp * (62 * sinf(HF[2] * t + HP[2]) + 40 * sinf(HF[3] * t + HP[3]));
+    if (G.i > 0 && inCircle(x, y, 114) && inCircle(G.x, G.y, 114)) stitch(G.x, G.y, x, y, 1.5f, shade(G.pcol, 0.7f + 0.6f * damp)); G.x = x; G.y = y; G.i++; }
+  if (expf(-G.e * G.i) < 0.08f) genComplete = true;
+}
+// 41 Molnár's (Dés)Ordres: a grid of nested squares, disorder creeping in then resetting
+static void initMolnar() { uint16_t g = randGround(); G.pcol = threadFor(g); G.a = 0; }
+static void stepMolnar() { if (G.steps % 5) return;
+  fillGround(ground, ground != SOOT); const int n = 5; const float cell = 44, o = 120 - cell * n / 2;
+  for (int j = 0; j < n; j++) for (int i = 0; i < n; i++) { float cx = o + (i + 0.5f) * cell, cy = o + (j + 0.5f) * cell; uint32_t h = (i * 73856093u) ^ (j * 19349663u) ^ (uint32_t)(G.steps / 5 * 2654435761u);
+    for (int k = 0; k < 4; k++) { float hs = cell * (0.46f - k * 0.1f); float jit = G.a * (((h >> (k * 5)) & 31) / 31.0f - 0.5f); float rot = jit * 0.6f, dx = jit * 5, dy = (((h >> (k * 3 + 7)) & 15) / 15.0f - 0.5f) * G.a * 5; float cr = cosf(rot), sr = sinf(rot);
+      float px_[4], py_[4]; for (int v = 0; v < 4; v++) { float sx = (v == 1 || v == 2) ? hs : -hs, sy = v >= 2 ? hs : -hs; px_[v] = cx + dx + sx * cr - sy * sr; py_[v] = cy + dy + sx * sr + sy * cr; }
+      for (int v = 0; v < 4; v++) if (inCircle(px_[v], py_[v], 116)) stitch(px_[v], py_[v], px_[(v + 1) % 4], py_[(v + 1) % 4], 1.6f, G.pcol); } }
+  G.a += 0.02f; if (G.a > 1.6f) { G.a = 0; G.pcol = threadFor(ground); } }
+
 // ---------------- dispatch ----------------
-static void genInit(int id) { G.id = id; G.steps = 0;
+static const bool GEN_EVOLVING[GEN_COUNT] = {true, false, false, true, true, true, false, true, false, true, false, false,
+                                            false, false, false, false, false, false, false, false, false, false,
+                                            false, false, false, false, false, false, false, false, false, false,
+                                            false, true, true, false, false, false, true, false, false, true};
+static void genInit(int id) { G.id = id; G.steps = 0; genComplete = false; genEvolving = GEN_EVOLVING[id]; slowFade = 0;
   switch (id) { case 0: initWander(); break; case 1: initSpiro(); break; case 2: initVine(); break; case 3: initLiss(); break; case 4: initSash(); drawSash(); break;
-                case 5: initPatch(); break; case 6: initMand(); break; case 7: initFlow(); break; case 8: initPhyl(); break; case 9: initLife(); break; case 10: grannyNew(false); break; case 11: grannyNew(true); break; default: if (id >= 22) asawaNew(id - 22); else floraInit(id - 12); } }
+                case 5: initPatch(); break; case 6: initMand(); break; case 7: initFlow(); break; case 8: initPhyl(); break; case 9: initLife(); break; case 10: grannyNew(false); break; case 11: grannyNew(true); break; case 32: initTuring(); break; case 33: initTruchet(); break; case 34: initFlock(); break; case 35: initDLA(); break; case 36: initPack(); break;
+                case 37: initSub(); break; case 38: initContours(); break; case 39: initAttr(); break; case 40: initHarm(); break; case 41: initMolnar(); break;
+                default: if (id >= 22) asawaNew(id - 22); else floraInit(id - 12); } }
 static void genStep() {
+  if (genComplete) {
+    if (!genSlow) return;                                   // hold the finished piece until the slot ends
+    if (++slowFade % 3 == 0) fadeToGround(5);               // slow mode: dissolve gently, then begin a new one
+    if (slowFade > 240) { int id = G.id; genInit(id); }
+    return;
+  }
   switch (G.id) { case 0: stepWander(); break; case 1: stepSpiro(); break; case 2: stepVine(); break; case 3: stepLiss(); break; case 4: stepSash(); break;
-                  case 5: stepPatch(); break; case 6: stepMand(); break; case 7: stepFlow(); break; case 8: stepPhyl(); break; case 9: stepLife(); break; case 10: grannyStep(false); break; case 11: grannyStep(true); break; default: if (G.id >= 22) asawaStep(); else floraStep(); }
+                  case 5: stepPatch(); break; case 6: stepMand(); break; case 7: stepFlow(); break; case 8: stepPhyl(); break; case 9: stepLife(); break; case 10: grannyStep(false); break; case 11: grannyStep(true); break; case 32: stepTuring(); break; case 33: stepTruchet(); break; case 34: stepFlock(); break; case 35: stepDLA(); break; case 36: stepPack(); break;
+                  case 37: stepSub(); break; case 38: stepContours(); break; case 39: stepAttr(); break; case 40: stepHarm(); break; case 41: stepMolnar(); break;
+                  default: if (G.id >= 22) asawaStep(); else floraStep(); }
   G.steps++;
 }
-static int genIndex(const char *name) { for (int i = 0; i < GEN_COUNT; i++) if (strcmp(name, GEN_NAMES[i]) == 0) return i; return -1; }
+// "gen_x" -> id; "gen_x_slow" -> id with slow flag (bit 8)
+static int genIndex(const char *name) {
+  char base[32]; strncpy(base, name, 31); base[31] = 0; int n = strlen(base); bool slow = n > 5 && strcmp(base + n - 5, "_slow") == 0; if (slow) base[n - 5] = 0;
+  for (int i = 0; i < GEN_COUNT; i++) if (strcmp(base, GEN_NAMES[i]) == 0) return i | (slow ? 256 : 0);
+  return -1;
+}
+static bool genCanSwitch() { return genComplete || genEvolving || genSlow; }

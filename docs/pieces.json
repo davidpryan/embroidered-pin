@@ -1108,5 +1108,205 @@
 "bg": false,
 "bytes": 0,
 "gen": true
+},
+"gen_turing": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_truchet": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_flock": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_dla": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_packing": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_subdivide": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_contours": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_attractor": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_harmonograph": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_molnar": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_wander_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_spirograph_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_vine_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_mandala_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_flowfield_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_phyllotaxis_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_granny_square_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_granny_shapes_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_roses_cream_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_daisies_black_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_lobes_black_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_nested_cream_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_truchet_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_contours_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_packing_slow": {
+"set": "generative-slow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
 }
 }

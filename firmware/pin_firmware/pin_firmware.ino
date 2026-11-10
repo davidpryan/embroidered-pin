@@ -87,7 +87,7 @@ int order[MAX_PIECES]; int orderPos = 0;
 int cur = 0; int frameIdx = 0; uint32_t dltPos = 0, dltEnd = 0, rec1Pos = 0, loopUntil = 0;
 enum Phase { PLAYING, HOLDING, GENERATING } phase = PLAYING;
 uint32_t genDeadline = 0;
-#define GEN_MIN_MS  120000UL   // how long a generative piece runs
+#define GEN_MIN_MS  120000UL   // minimum slot for a generative piece; it always finishes what it is making
 #define GEN_MAX_MS  300000UL
 #define GEN_STEP_MS 60
 uint32_t nextFrameAt = 0, holdUntil = 0, pieceDeadline = 0, nextStir = 0, lastMotion = 0, boostUntil = 0;
@@ -144,7 +144,7 @@ bool nextDelta() {
 void startPiece(int p, bool fromGround, bool stir = false) {
   cur = p; savedPiece = p;
   if (!stir) pieceDeadline = 0;
-  if (pieces[p].gen && pieces[p].genId >= 0) { genInit(pieces[p].genId); blit(); phase = GENERATING; genDeadline = millis() + random(GEN_MIN_MS, GEN_MAX_MS); nextFrameAt = millis(); return; }
+  if (pieces[p].gen && pieces[p].genId >= 0) { genSlow = pieces[p].genId & 256; genInit(pieces[p].genId & 255); blit(); phase = GENERATING; genDeadline = millis() + random(GEN_MIN_MS, GEN_MAX_MS); nextFrameAt = millis(); return; }
   dltPos = pieces[p].dltOff; dltEnd = pieces[p].dltOff + pieces[p].dltLen;
   uint32_t len0 = 0; if (dltPos + 4 <= dltEnd) esp_partition_read(part, dltPos, &len0, 4);
   rec1Pos = dltPos + 4 + len0;
@@ -226,8 +226,8 @@ void loop() {
   if (idle > SLEEP_AFTER_MS && phase != PLAYING) deepSleep(false);
 
   if (phase == GENERATING) {
-    if (now >= genDeadline) { fadeOut(); startPiece(nextIndex(), true); }
-    else if (now >= nextFrameAt) { genStep(); blit(); nextFrameAt = now + GEN_STEP_MS; }
+    if (now >= genDeadline && (genCanSwitch() || now >= genDeadline + 180000UL)) { fadeOut(); startPiece(nextIndex(), true); }   // finish the composition first
+    else if (now >= nextFrameAt) { genStep(); blit(); nextFrameAt = now + (genSlow ? GEN_STEP_MS * 4 : GEN_STEP_MS); }
   } else if (phase == PLAYING) {
     if (now >= nextFrameAt) {
       if (frameIdx < pieces[cur].frames && nextDelta()) { blit(); frameIdx++; nextFrameAt = now + FRAME_MS; }
