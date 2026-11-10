@@ -1308,5 +1308,165 @@
 "bg": false,
 "bytes": 0,
 "gen": true
+},
+"touch_seam": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_satin": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_bloom": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_ripple": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_knots": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_flock": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_crystal": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_vine": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_web": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_granny": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_rose": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_asawa": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_mend": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_buttons": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_kaleido": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_string": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_contours": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_shibori": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_life": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"touch_truchet": {
+"set": "touch-reactive",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
 }
 }

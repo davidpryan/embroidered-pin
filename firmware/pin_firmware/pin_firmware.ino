@@ -84,6 +84,26 @@ Settings S = {90, 20, 200, 80, 20, 60, 60, 180, 40, 90, 120, 300, 3450, 120, 60,
 #define QMI_STATUS1 0x2F
 #define QMI_RESET 0x60
 
+// ---------------- CST816S touch (I2C 0x15): coordinates + on-chip gestures ----------------
+#define TP_ADDR 0x15
+#define PIN_TP_RST 13
+enum Gesture { G_NONE = 0, G_UP = 1, G_DOWN = 2, G_LEFT = 3, G_RIGHT = 4, G_TAP = 5, G_DOUBLE = 0x0B, G_LONG = 0x0C };
+struct Touch { bool down; int x, y; uint8_t gesture; } tp;
+void tpWrite(uint8_t r, uint8_t v) { Wire.beginTransmission(TP_ADDR); Wire.write(r); Wire.write(v); Wire.endTransmission(); }
+void tpInit() {
+  pinMode(PIN_TP_RST, OUTPUT); digitalWrite(PIN_TP_RST, LOW); delay(10); digitalWrite(PIN_TP_RST, HIGH); delay(60);
+  tpWrite(0xEC, 0x01);   // MotionMask: enable double-click
+  tpWrite(0xFA, 0x71);   // IrqCtl: report on touch, change and motion (gestures)
+  tpWrite(0xFE, 0x00);   // auto-sleep on (saves ~1.5 mA); the first touch wakes it
+}
+void tpRead() {
+  Wire.beginTransmission(TP_ADDR); Wire.write(0x01); if (Wire.endTransmission(false) != 0) { tp.down = false; tp.gesture = 0; return; }
+  Wire.requestFrom((uint8_t)TP_ADDR, (uint8_t)6); if (Wire.available() < 6) { tp.gesture = 0; return; }
+  uint8_t g = Wire.read(), n = Wire.read(), xh = Wire.read(), xl = Wire.read(), yh = Wire.read(), yl = Wire.read();
+  tp.gesture = g; tp.down = n > 0; if (tp.down) { tp.x = ((xh & 0x0F) << 8) | xl; tp.y = ((yh & 0x0F) << 8) | yl; }
+}
+void tpStayAwake(bool on) { tpWrite(0xFE, on ? 0xFF : 0x00); }   // reactive pieces keep the controller awake for dragging
+
 Arduino_DataBus *bus = new Arduino_ESP32SPI(PIN_LCD_DC, PIN_LCD_CS, PIN_LCD_SCLK, PIN_LCD_MOSI, PIN_LCD_MISO, FSPI);
 Arduino_GFX *gfx = new Arduino_GC9A01(bus, PIN_LCD_RST, 0, true);
 
@@ -156,7 +176,8 @@ bool nextDelta() {
 void startPiece(int p, bool fromGround, bool stir = false) {
   cur = p; savedPiece = p;
   if (!stir) pieceDeadline = 0;
-  if (pieces[p].gen && pieces[p].genId >= 0) { genSlow = pieces[p].genId & 256; genInit(pieces[p].genId & 255); blit(); phase = GENERATING; genDeadline = millis() + random(GEN_MIN_MS, GEN_MAX_MS); nextFrameAt = millis(); return; }
+  tpStayAwake(false);
+  if (pieces[p].gen && pieces[p].genId >= 0) { genSlow = pieces[p].genId & 256; genInit(pieces[p].genId & 255); if (genIsReactive()) tpStayAwake(true); blit(); phase = GENERATING; genDeadline = millis() + random(GEN_MIN_MS, GEN_MAX_MS); nextFrameAt = millis(); return; }
   dltPos = pieces[p].dltOff; dltEnd = pieces[p].dltOff + pieces[p].dltLen;
   uint32_t len0 = 0; if (dltPos + 4 <= dltEnd) esp_partition_read(part, dltPos, &len0, 4);
   rec1Pos = dltPos + 4 + len0;
@@ -174,6 +195,7 @@ void fadeOut() {
     blit();
   }
 }
+int prevIndex() { orderPos = (orderPos + nPieces - 1) % nPieces; return order[orderPos]; }
 int nextIndex() {
   for (int tries = 0; tries < nPieces; tries++) {
     orderPos = (orderPos + 1) % nPieces; int p = order[orderPos];
@@ -229,7 +251,7 @@ void setup() {
   bool ok = loadPak();
   setCpuFrequencyMhz(S.cpu_mhz == 160 ? 160 : 80);
   if (!ok) { gfx->setTextColor(RGB565_RED); gfx->setCursor(40, 110); gfx->print("No animation archive"); setBacklight(BL_NORMAL); while (true) delay(1000); }
-  Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, 400000); imuSetupWoM();
+  Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, 400000); tpInit(); imuSetupWoM();
   attachInterrupt(digitalPinToInterrupt(PIN_IMU_INT1), onMotion, RISING);
   attachInterrupt(digitalPinToInterrupt(PIN_TP_INT), onTouch, FALLING);
   for (int i = 0; i < nPieces; i++) if (order[i] == savedPiece % nPieces) orderPos = i;
@@ -246,18 +268,33 @@ void setup() {
 void loop() {
   uint32_t now = millis();
   if (motionFlag) { motionFlag = false; lastMotion = now; imuClear(); }
-  if (touchFlag) {
+  // ---- touch: gestures navigate; taps and drags go to reactive generators
+  static bool wasDown = false; static uint32_t downAt = 0; static int downX = 0, downY = 0;
+  bool reactive = phase == GENERATING && genIsReactive();
+  if (touchFlag || (reactive && wasDown)) {
     touchFlag = false; lastMotion = now; boostUntil = now + BOOST_MS;
-    uint32_t t0 = millis(); while (digitalRead(PIN_TP_INT) == LOW && millis() - t0 < 1500) delay(10);
-    fadeOut();
-    startPiece(millis() - t0 > 900 ? cur : nextIndex(), true);
+    tpRead();
+    if (tp.gesture == G_LEFT)       { fadeOut(); startPiece(nextIndex(), true); wasDown = false; }
+    else if (tp.gesture == G_RIGHT) { fadeOut(); startPiece(prevIndex(), true); wasDown = false; }
+    else if (tp.gesture == G_UP)    { S.bl_normal = min(255, S.bl_normal + 40); }
+    else if (tp.gesture == G_DOWN)  { S.bl_normal = max(15, S.bl_normal - 40); }
+    else if (tp.gesture == G_DOUBLE){ fadeOut(); startPiece(cur, true); wasDown = false; }
+    else if (tp.gesture == G_LONG)  { if (!reactive) { pieceDeadline = now + 3600000UL; holdUntil = pieceDeadline; genDeadline = pieceDeadline; } }   // pin this piece for an hour
+    else if (reactive) {
+      if (tp.down && !wasDown) { genTouch(0, tp.x, tp.y); downAt = now; downX = tp.x; downY = tp.y; }
+      else if (tp.down && wasDown) genTouch(1, tp.x, tp.y);
+      else if (!tp.down && wasDown) genTouch(2, tp.x, tp.y);
+      wasDown = tp.down;
+    }
+    else if (tp.gesture == G_TAP || (tp.down && !wasDown)) { if (!tp.down || now - downAt > 300) { fadeOut(); startPiece(nextIndex(), true); } wasDown = tp.down; if (tp.down) downAt = now; }
+    else wasDown = tp.down;
   }
   uint32_t idle = now - lastMotion;
   if (now < boostUntil) setBacklight(BL_BOOST); else if (idle > DIM_AFTER_MS) setBacklight(BL_DIM); else setBacklight(BL_NORMAL);
   if (S.sleep_after_s && idle > SLEEP_AFTER_MS && phase != PLAYING) deepSleep(false);
 
   if (phase == GENERATING) {
-    if (now >= genDeadline && (genCanSwitch() || now >= genDeadline + 180000UL)) { fadeOut(); startPiece(nextIndex(), true); }   // finish the composition first
+    if (now >= genDeadline && (genCanSwitch() || now >= genDeadline + 180000UL) && !(genIsReactive() && now - lastMotion < 15000)) { fadeOut(); startPiece(nextIndex(), true); }   // finish the composition first; don't leave a reactive piece while it's being played with
     else if (now >= nextFrameAt) { genStep(); blit(); nextFrameAt = now + (genSlow ? GEN_STEP_MS * 4 : GEN_STEP_MS); }
   } else if (phase == PLAYING) {
     if (now >= nextFrameAt) {
@@ -274,5 +311,5 @@ void loop() {
   }
   static uint32_t lastBatt = 0;
   if (now - lastBatt > 10000) { lastBatt = now; float v = batteryV(); Serial.printf("BATT %.2f %s\n", v, v > 4.25f ? "USB" : "BAT"); if (v < BATT_LOW_V && v < 4.25f) deepSleep(true); }
-  delay(phase == HOLDING ? 40 : 3);
+  delay(phase == HOLDING ? 40 : (reactive ? 15 : 3));
 }

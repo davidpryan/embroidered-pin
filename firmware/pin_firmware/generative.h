@@ -8,14 +8,17 @@
 extern uint16_t *frameBuf;
 #define GW 240
 #define GH 240
-#define GEN_COUNT 42
+#define GEN_COUNT 62
 static const char *GEN_NAMES[GEN_COUNT] = {"gen_wander", "gen_spirograph", "gen_vine", "gen_lissajous", "gen_sashiko_drift",
                                            "gen_patchwork", "gen_mandala", "gen_flowfield", "gen_phyllotaxis", "gen_life_x", "gen_granny_square", "gen_granny_shapes",
                                            "gen_roses_cream", "gen_roses_black", "gen_daisies_cream", "gen_daisies_black", "gen_lavender_cream", "gen_lavender_black",
                                            "gen_blossom_cream", "gen_blossom_black", "gen_ferns_cream", "gen_ferns_black",
                                            "gen_asawa_lobes_cream", "gen_asawa_lobes_black", "gen_asawa_nested_cream", "gen_asawa_nested_black", "gen_asawa_tied_cream", "gen_asawa_tied_black",
                                            "gen_asawa_column_cream", "gen_asawa_column_black", "gen_asawa_loops_cream", "gen_asawa_loops_black",
-                                           "gen_turing", "gen_truchet", "gen_flock", "gen_dla", "gen_packing", "gen_subdivide", "gen_contours", "gen_attractor", "gen_harmonograph", "gen_molnar"};
+                                           "gen_turing", "gen_truchet", "gen_flock", "gen_dla", "gen_packing", "gen_subdivide", "gen_contours", "gen_attractor", "gen_harmonograph", "gen_molnar",
+                                           "touch_seam", "touch_satin", "touch_bloom", "touch_ripple", "touch_knots", "touch_flock", "touch_crystal", "touch_vine", "touch_web", "touch_granny",
+                                           "touch_rose", "touch_asawa", "touch_mend", "touch_buttons", "touch_kaleido", "touch_string", "touch_contours", "touch_shibori", "touch_life", "touch_truchet"};
+#define REACTIVE_FIRST 42
 
 // ---------------- palette / colour helpers ----------------
 static inline uint16_t C565(int r, int g, int b) { return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3); }
@@ -538,15 +541,200 @@ static void stepMolnar() { if (G.steps % 5) return;
       for (int v = 0; v < 4; v++) if (inCircle(px_[v], py_[v], 116)) stitch(px_[v], py_[v], px_[(v + 1) % 4], py_[(v + 1) % 4], 1.6f, G.pcol); } }
   G.a += 0.02f; if (G.a > 1.6f) { G.a = 0; G.pcol = threadFor(ground); } }
 
+
+// ================= 42..61 reactive generators: the finger is the needle =================
+static uint16_t MUSTARD_C() { return C565(214, 168, 58); }
+struct TouchState { bool down; float x, y, lx, ly, dx, dy; int ev; uint32_t downSteps; float path[2]; } TS;   // ev: 0 down 1 move 2 up, -1 none
+static bool genIsReactive() { return G.id >= REACTIVE_FIRST; }
+static void genTouch(int type, int x, int y) {
+  if (type == 0) { TS.down = true; TS.x = TS.lx = x; TS.y = TS.ly = y; TS.dx = TS.dy = 0; TS.downSteps = 0; }
+  else if (type == 1) { TS.lx = TS.x; TS.ly = TS.y; TS.x = x; TS.y = y; TS.dx = TS.x - TS.lx; TS.dy = TS.y - TS.ly; }
+  else { TS.down = false; }
+  TS.ev = type;
+}
+static inline bool fresh(int type) { bool r = TS.ev == type; return r; }
+static void consumeTouch() { if (TS.ev == 2 || TS.ev == 0) TS.ev = -1; else if (TS.ev == 1) TS.ev = -1; }
+
+// 42 seam: drag sews a running stitch; lifts end the seam; old seams fade
+static void initTSeam() { uint16_t g = randGround(); G.pcol = threadFor(g); G.a = 0; }
+static void stepTSeam() {
+  if (TS.down && TS.ev == 1) { float L = sqrtf(TS.dx * TS.dx + TS.dy * TS.dy); G.a += L;
+    if (G.a > 3.5f) { G.a = 0; float ux = TS.dx / (L + 0.01f), uy = TS.dy / (L + 0.01f); stitch(TS.x - ux * 5, TS.y - uy * 5, TS.x, TS.y, 2.4f, G.pcol); } }
+  if (TS.ev == 2) G.pcol = threadFor(ground);
+  if (G.steps % 50 == 49) fadeToGround(6); consumeTouch(); }
+// 43 satin brush: drag paints a fat satin stroke, tap changes colour
+static void initTSatin() { uint16_t g = randGround(); G.pcol = threadFor(g); G.b = 7; }
+static void stepTSatin() {
+  if (TS.down) { float L = sqrtf(TS.dx * TS.dx + TS.dy * TS.dy); if (L > 0.5f) { float nx = -TS.dy / L, ny = TS.dx / L; for (float t = 0; t <= L; t += 1.2f) { float px_ = TS.lx + TS.dx * t / L, py_ = TS.ly + TS.dy * t / L; stitch(px_ + nx * G.b, py_ + ny * G.b, px_ - nx * G.b, py_ - ny * G.b, 1.4f, shade(G.pcol, 0.85f + 0.3f * frand())); } } }
+  if (TS.ev == 0) { TS.downSteps = 0; } if (TS.down) TS.downSteps++;
+  if (TS.ev == 2 && TS.downSteps < 6) G.pcol = threadFor(ground);          // a quick tap = next colour
+  consumeTouch(); }
+// 44 bloom: tap plants a flower that blooms petal by petal
+static void initTBloom() { uint16_t g = randGround(); FL.dark = g == SOOT; FL.nfl = 0; FL.leaf = FL.dark ? C565(150, 180, 110) : C565(126, 150, 92); }
+static void stepTBloom() {
+  if (TS.ev == 0) { if (FL.nfl >= 48) FL.nfl = 0; addFlower(TS.x, TS.y, random(0, 4) == 2 ? 3 : random(0, 4), frandr(9, 16), FLOWER_COLS[random(0, 7)]);
+    for (int k = 0; k < 2; k++) { float a = frandr(0, 6.28f); leafStroke(TS.x + cosf(a) * 6, TS.y + sinf(a) * 6, a, frandr(8, 14), 2.4f, FL.leaf); } }
+  int blooming = 0; for (int i = 0; i < FL.nfl; i++) if (FL.fl[i].alive) { blooming++; if (!bloom(FL.fl[i])) FL.fl[i].alive = false; if (blooming >= 2) break; }
+  consumeTouch(); }
+// 45 ripple: tap drops a stone; stitched rings expand
+struct Rip { float x, y, r; bool on; } RP[3];
+static void initTRipple() { uint16_t g = randGround(); G.pcol = threadFor(g); for (auto &r : RP) r.on = false; }
+static void stepTRipple() {
+  if (TS.ev == 0) { bool placed = false; for (auto &r : RP) if (!r.on) { r = {TS.x, TS.y, 4, true}; placed = true; break; } if (!placed) RP[0] = {TS.x, TS.y, 4, true}; }
+  if (G.steps % 2 == 0) for (auto &r : RP) if (r.on) { int segs = 16 + (int)r.r / 3; for (int k = 0; k < segs; k += 2) { float a0 = 6.2832f * k / segs, a1 = a0 + 6.2832f / segs; float x0 = r.x + r.r * cosf(a0), y0 = r.y + r.r * sinf(a0), x1 = r.x + r.r * cosf(a1), y1 = r.y + r.r * sinf(a1); if (inCircle(x0, y0, 114) && inCircle(x1, y1, 114)) stitch(x0, y0, x1, y1, 1.8f, shade(G.pcol, 1.0f - r.r / 300)); } r.r += 7; if (r.r > 120) r.on = false; }
+  if (G.steps % 2 == 1) fadeToGround(22); consumeTouch(); }
+// 46 knots: drag drops French knots, denser when you move slowly
+static void initTKnots() { uint16_t g = randGround(); G.pcol = threadFor(g); G.a = 0; }
+static void stepTKnots() {
+  if (TS.down) { float L = sqrtf(TS.dx * TS.dx + TS.dy * TS.dy); G.a += max(1.0f, L); if (G.a > 7) { G.a = 0; knot(TS.x + frandr(-2, 2), TS.y + frandr(-2, 2), frandr(2.2f, 4.2f), L < 2 ? shade(G.pcol, 1.2f) : G.pcol); } }
+  if (TS.ev == 2) G.pcol = threadFor(ground); consumeTouch(); }
+// 47 flock: the boids flee your finger and regroup when you lift
+static void initTFlock() { initFlock(); }
+static void stepTFlock() {
+  if (TS.down) for (auto &b : BD) { float dx = b.x - TS.x, dy = b.y - TS.y, d2 = dx * dx + dy * dy + 1; if (d2 < 3600) { b.vx += dx / d2 * 40; b.vy += dy / d2 * 40; } }
+  stepFlock(); consumeTouch(); }
+// 48 crystal: tap seeds a DLA crystal where you touch
+static void initTCrystal() { uint16_t g = randGround(); G.pcol = threadFor(g); memset(OCC, 0, sizeof OCC); G.a = 0; G.i = 0; }
+static void stepTCrystal() {
+  if (TS.ev == 0) { setOcc(TS.x, TS.y); knot(TS.x, TS.y, 2.6f, G.pcol); G.a = max(G.a, sqrtf((TS.x - 120) * (TS.x - 120) + (TS.y - 120) * (TS.y - 120)) + 8); }
+  if (G.a > 0) { float sr = min(106.0f, G.a + 6); for (int w = 0; w < 16; w++) { float a = frandr(0, 6.28f); int x = 120 + sr * cosf(a), y = 120 + sr * sinf(a);
+      for (int t = 0; t < 2500; t++) { x += random(-1, 2); y += random(-1, 2); if (!inCircle(x, y, min(110.0f, G.a + 16))) { a = frandr(0, 6.28f); x = 120 + sr * cosf(a); y = 120 + sr * sinf(a); }
+        if (occ(x + 1, y) || occ(x - 1, y) || occ(x, y + 1) || occ(x, y - 1)) { setOcc(x, y); knot(x, y, 1.7f, shade(G.pcol, 0.75f + frand() * 0.5f)); G.a = max(G.a, sqrtf((x - 120.f) * (x - 120.f) + (y - 120.f) * (y - 120.f)) + 8); G.i++; break; } } } }
+  consumeTouch(); }
+// 49 vine: a vine sprouts from wherever you touch and climbs
+static void initTVine() { fillGround(C565(232, 224, 204), true); G.branches = 0; }
+static void stepTVine() {
+  if (TS.ev == 0 && G.branches < 38) { G.branchX[G.branches] = TS.x; G.branchY[G.branches] = TS.y; G.branchA[G.branches] = -1.57f + frandr(-0.5f, 0.5f); G.branchL[G.branches] = 1; G.branches++; }
+  for (int bi = 0; bi < G.branches; bi++) {
+    float &x = G.branchX[bi], &y = G.branchY[bi], &a = G.branchA[bi]; a += frandr(-0.3f, 0.3f) + (-1.57f - a) * 0.05f;
+    float nx = x + cosf(a) * 3, ny = y + sinf(a) * 3; if (!inCircle(nx, ny, 110)) { G.branchX[bi] = G.branchX[G.branches - 1]; G.branchY[bi] = G.branchY[G.branches - 1]; G.branchA[bi] = G.branchA[G.branches - 1]; G.branches--; bi--; continue; }
+    stitch(x, y, nx, ny, 2.4f, C565(86, 110, 64)); x = nx; y = ny;
+    if (frand() < 0.1f) leafStroke(x, y, a + (random(2) ? 1 : -1), frandr(7, 11), 2.2f, C565(132, 150, 100));
+    if (frand() < 0.025f) { uint16_t fc = FLOWER_COLS[random(0, 7)]; for (int p = 0; p < 6; p++) knot(x + cosf(p * 1.05f) * 4, y + sinf(p * 1.05f) * 4, 2.2f, fc); knot(x, y, 2, C565(214, 168, 58)); }
+    if (frand() < 0.03f && G.branches < 38) { G.branchX[G.branches] = x; G.branchY[G.branches] = y; G.branchA[G.branches] = a + frandr(-1, 1); G.branchL[G.branches] = 1; G.branches++; } }
+  consumeTouch(); }
+// 50 web: each tap pins a thread anchor and ties it to the nearest three
+static void initTWeb() { uint16_t g = randGround(); G.pcol = threadFor(g); G.n = 0; }
+static void stepTWeb() {
+  if (TS.ev == 0 && G.n < 64) { int best[3] = {-1, -1, -1}; float bd[3] = {1e9, 1e9, 1e9};
+    for (int i = 0; i < G.n; i++) { float d = (G.px_[i] - TS.x) * (G.px_[i] - TS.x) + (G.py_[i] - TS.y) * (G.py_[i] - TS.y); for (int k = 0; k < 3; k++) if (d < bd[k]) { for (int m = 2; m > k; m--) { bd[m] = bd[m - 1]; best[m] = best[m - 1]; } bd[k] = d; best[k] = i; break; } }
+    for (int k = 0; k < 3; k++) if (best[k] >= 0) { float ax = G.px_[best[k]], ay = G.py_[best[k]]; dashes(ax, ay, TS.x, TS.y, 5, 2.5f, 1.6f, G.pcol); }
+    G.px_[G.n] = TS.x; G.py_[G.n] = TS.y; G.n++; knot(TS.x, TS.y, 3.2f, shade(G.pcol, 1.2f)); }
+  consumeTouch(); }
+// 51 granny: every tap crochets a small granny square there
+static void initTGranny() { fillGround(SOOT, false); G.n = 0; }
+static void stepTGranny() {
+  if (TS.ev == 0) { int start = random(0, 7); float cx = TS.x, cy = TS.y, skew = frandr(-0.3f, 0.3f);
+    for (int i = 0; i < 12; i++) { float a0 = i * 0.5236f, a1 = a0 + 0.5236f; yarnSeg(cx + 5 * cosf(a0), cy + 5 * sinf(a0), cx + 5 * cosf(a1), cy + 5 * sinf(a1), 2.6f, PAL[start % 7]); }
+    for (int n = 1; n <= 2; n++) { uint16_t col = PAL[(start + n) % 7]; float hi = 7 + 12 * (n - 1), ho = hi + 10; int per = n;
+      for (int side = 0; side < 4; side++) { float rot = 1.5708f * side + skew;
+        for (int k = 0; k < per; k++) { float x = -hi + 2 * hi * (k + 0.5f) / per; float bx, by, tx, ty;
+          for (int o = -1; o <= 1; o++) { bx = cx + x * cosf(rot) - (-hi + 1) * sinf(rot); by = cy + x * sinf(rot) + (-hi + 1) * cosf(rot); tx = cx + (x + o * 3.2f) * cosf(rot) - (-ho) * sinf(rot); ty = cy + (x + o * 3.2f) * sinf(rot) + (-ho) * cosf(rot); post(bx, by, tx, ty, col); } }
+        float cr = ho * 1.4142f + 1.5f, ac = rot + 0.7854f - 1.5708f; yarnSeg(cx + ho * cosf(rot - 1.5708f) * 0 + (hi) * cosf(rot) - (-ho) * sinf(rot), cy + (hi) * sinf(rot) + (-ho) * cosf(rot), cx + cr * cosf(ac), cy + cr * sinf(ac), 2.2f, col); } } }
+  consumeTouch(); }
+// 52 rose: hold to grow a spiral rose; the longer you hold, the bigger
+static void initTRose() { uint16_t g = randGround(); G.pcol = threadFor(g); G.a = 0; }
+static void stepTRose() {
+  if (TS.ev == 0) { G.a = 0; G.pcol = FLOWER_COLS[random(0, 7)]; G.x = TS.x; G.y = TS.y; }
+  if (TS.down && G.a < 6.2832f * 3.5f) { float th0 = G.a, th1 = G.a + 0.45f, r0 = 1 + 2.4f * th0, r1 = 1 + 2.4f * th1; stitch(G.x + r0 * cosf(th0), G.y + r0 * sinf(th0), G.x + r1 * cosf(th1), G.y + r1 * sinf(th1), 2.8f, shade(G.pcol, 0.7f + 0.5f * th1 / 22)); G.a = th1; }
+  if (TS.ev == 2 && G.a > 2) for (int k = 0; k < 3; k++) { float a = frandr(0, 6.28f), r = 1 + 2.4f * G.a; leafStroke(G.x + cosf(a) * r, G.y + sinf(a) * r, a, 12, 3, C565(96, 134, 72)); }
+  consumeTouch(); }
+// 53 asawa: drag up and down the centre line to sculpt a lobed form, lift to crochet it
+static void initTAsawa() { AS.dark = random(2); uint16_t g = AS.dark ? SOOT : C565(232, 224, 204); fillGround(g, !AS.dark); for (int i = 0; i < 28; i++) G.px_[i] = 0; G.n = 0; G.i = -1; }
+static void stepTAsawa() {
+  if (TS.down) { int row = constrain((int)(TS.y / 8.6f), 0, 27); float r = fabsf(TS.x - 120); G.px_[row] = max(G.px_[row], min(r, 108.0f)); for (int k = 1; k <= 2; k++) { if (row - k >= 0) G.px_[row - k] = max(G.px_[row - k], G.px_[row] * (1 - 0.25f * k)); if (row + k < 28) G.px_[row + k] = max(G.px_[row + k], G.px_[row] * (1 - 0.25f * k)); }
+    // live guide: faint ring where the finger is
+    float R = G.px_[row]; for (int k = 0; k < 20; k++) { float a0 = k * 0.314f, a1 = a0 + 0.314f; stitch(120 + R * cosf(a0), row * 8.6f + 4 + R * 0.28f * sinf(a0), 120 + R * cosf(a1), row * 8.6f + 4 + R * 0.28f * sinf(a1), 1.0f, shade(ground, AS.dark ? 2.5f : 0.8f)); } }
+  if (TS.ev == 2) { fillGround(ground, !AS.dark); G.i = 0; G.n = 0; }
+  if (G.i >= 0 && G.i < 28) {   // crochet the sculpted profile ring by ring
+    uint16_t col = asawaCol(0); float y = G.i * 8.6f + 4, R = G.px_[G.i], yp = (G.i - 1) * 8.6f + 4, Rp = G.i ? G.px_[G.i - 1] : 0;
+    if (G.i == 0) stitch(120, 0, 120, y, 1.1f, col);
+    if (R > 2) { for (int k = 0; k < 28; k++) { float a0 = k * 0.2244f, a1 = a0 + 0.2244f; stitch(120 + R * cosf(a0), y + R * 0.28f * sinf(a0), 120 + R * cosf(a1), y + R * 0.28f * sinf(a1), wireW(1.3f), k < 14 ? shade(col, 0.8f) : col); }
+      for (int m = 0; m < 16; m++) { float a = 6.2832f * m / 16; stitch(120 + Rp * cosf(a), yp + Rp * 0.28f * sinf(a), 120 + R * cosf(a), y + R * 0.28f * sinf(a), wireW(1.1f), sinf(a) < 0 ? shade(col, 0.75f) : col); } }
+    G.i++; }
+  consumeTouch(); }
+// 54 mend: tap tears the cloth; it darns itself shut
+static void initTMend() { fillGround(C565(96, 58, 92), true); G.n = 0; }
+static void stepTMend() {
+  if (TS.ev == 0 && G.n < 8) { float a = frandr(0, 3.14f), L = frandr(18, 34); G.px_[G.n] = TS.x; G.py_[G.n] = TS.y; G.pvx[G.n] = a; G.pvy[G.n] = L; G.pc[G.n] = 0; G.n++;
+    for (int k = -4; k < 4; k++) { float t0 = k * L / 8, t1 = t0 + L / 8; thick(TS.x + cosf(a) * t0 + frandr(-2, 2), TS.y + sinf(a) * t0, TS.x + cosf(a) * t1 + frandr(-2, 2), TS.y + sinf(a) * t1, 5, C565(10, 8, 10)); } }
+  for (int i = 0; i < G.n; i++) if (G.pc[i] < 60) { float a = G.pvx[i], L = G.pvy[i]; int k = G.pc[i]; float nx = -sinf(a), ny = cosf(a);
+    if (k < 24) { float t = -L / 2 - 6 + k * (L + 12) / 24; stitch(G.px_[i] + cosf(a) * t + nx * 7, G.py_[i] + sinf(a) * t + ny * 7, G.px_[i] + cosf(a) * t - nx * 7, G.py_[i] + sinf(a) * t - ny * 7, 2.0f, MUSTARD_C()); }
+    else { int j = k - 24; float u = -7 + j * 14 / 36.0f; stitch(G.px_[i] - cosf(a) * (L / 2 + 6) + nx * u, G.py_[i] - sinf(a) * (L / 2 + 6) + ny * u, G.px_[i] + cosf(a) * (L / 2 + 6) + nx * u, G.py_[i] + sinf(a) * (L / 2 + 6) + ny * u, 1.6f, (j & 1) ? C565(72, 132, 130) : C565(236, 226, 204)); }
+    G.pc[i]++; break; }
+  consumeTouch(); }
+// 55 buttons: tap sews on a button; drag sews a thread between the last two
+static void initTButtons() { uint16_t g = randGround(); G.n = 0; }
+static void stepTButtons() {
+  if (TS.ev == 0) { float r = frandr(7, 16); uint16_t c = PAL[random(0, 7)]; int segs = (int)(r * 1.6f);
+    for (int k = 0; k < segs; k++) { float a0 = 6.2832f * k / segs, a1 = a0 + 6.2832f / segs; stitch(TS.x + r * cosf(a0), TS.y + r * sinf(a0), TS.x + r * cosf(a1), TS.y + r * sinf(a1), 2.4f, c); }
+    disc(TS.x, TS.y, r * 0.78f, shade(c, 0.9f)); disc(TS.x, TS.y, r * 0.78f, c); float hs = r * 0.26f, hr = r * 0.11f + 0.8f; uint16_t thr = random(2) ? SOOT : CREAM; if (c == SOOT) thr = CREAM;
+    disc(TS.x - hs, TS.y - hs, hr, C565(8, 8, 10)); disc(TS.x + hs, TS.y - hs, hr, C565(8, 8, 10)); disc(TS.x + hs, TS.y + hs, hr, C565(8, 8, 10)); disc(TS.x - hs, TS.y + hs, hr, C565(8, 8, 10));
+    stitch(TS.x - hs, TS.y - hs, TS.x + hs, TS.y + hs, 1.8f, thr); stitch(TS.x + hs, TS.y - hs, TS.x - hs, TS.y + hs, 1.8f, thr);
+    if (G.n > 0) dashes(G.px_[(G.n - 1) % 64], G.py_[(G.n - 1) % 64], TS.x, TS.y, 4, 3, 1.3f, thr); G.px_[G.n % 64] = TS.x; G.py_[G.n % 64] = TS.y; G.n++; }
+  consumeTouch(); }
+// 56 kaleido: everything you draw is mirrored six-fold
+static void initTKaleido() { uint16_t g = randGround(); G.pcol = threadFor(g); }
+static void stepTKaleido() {
+  if (TS.down && TS.ev == 1) { for (int k = 0; k < 6; k++) { float a = k * 1.0472f, ca = cosf(a), sa = sinf(a);
+      for (int m = 0; m < 2; m++) { float lx = TS.lx - 120, ly = (m ? -1 : 1) * (TS.ly - 120), x = TS.x - 120, y = (m ? -1 : 1) * (TS.y - 120);
+        stitch(120 + lx * ca - ly * sa, 120 + lx * sa + ly * ca, 120 + x * ca - y * sa, 120 + x * sa + y * ca, 2.2f, G.pcol); } } }
+  if (TS.ev == 2) G.pcol = threadFor(ground); consumeTouch(); }
+// 57 string art: tap near the rim to add a pin; threads run between the pins
+static void initTString() { uint16_t g = randGround(); G.pcol = threadFor(g); G.n = 0; for (int k = 0; k < 36; k++) knot(120 + 110 * cosf(k * 0.1745f), 120 + 110 * sinf(k * 0.1745f), 1.6f, shade(ground, ground == SOOT ? 2.2f : 0.8f)); }
+static void stepTString() {
+  if (TS.ev == 0 && G.n < 64) { float a = atan2f(TS.y - 120, TS.x - 120); float x = 120 + 110 * cosf(a), y = 120 + 110 * sinf(a); knot(x, y, 2.6f, G.pcol);
+    for (int i = max(0, G.n - 6); i < G.n; i++) stitch(G.px_[i], G.py_[i], x, y, 1.3f, shade(G.pcol, 0.8f + 0.3f * frand())); G.px_[G.n] = x; G.py_[G.n] = y; G.n++; if (G.n % 8 == 0) G.pcol = threadFor(ground); }
+  consumeTouch(); }
+// 58 contours: press to raise a hill in the noise field; the contours flow around it
+static float BUMPX[6], BUMPY[6], BUMPH[6]; static int nbump;
+static void initTContours() { initContours(); nbump = 0; }
+static void stepTContours() {
+  if (TS.ev == 0) { BUMPX[nbump % 6] = TS.x; BUMPY[nbump % 6] = TS.y; BUMPH[nbump % 6] = 0.1f; nbump++; }
+  if (TS.down) BUMPH[(nbump - 1) % 6] = min(1.2f, BUMPH[(nbump - 1) % 6] + 0.03f);
+  if (G.steps % 4 == 0) {
+    fillGround(ground, ground != SOOT); const int N = 40; const float cs = 6; static float F[41 * 41];
+    for (int j = 0; j <= N; j++) for (int i = 0; i <= N; i++) { float v = vnoise(i * cs / 70 + G.a, j * cs / 70 + G.b + G.c); for (int b = 0; b < min(nbump, 6); b++) { float dx = i * cs - BUMPX[b], dy = j * cs - BUMPY[b]; v += BUMPH[b] * expf(-(dx * dx + dy * dy) / 1400); } F[j * 41 + i] = v; }
+    for (int lv = 0; lv < 9; lv++) { float iso = 0.2f + lv * 0.16f; uint16_t c = lv % 2 ? G.pcol : shade(G.pcol, 0.8f);
+      for (int j = 0; j < N; j++) for (int i = 0; i < N; i++) { float a = F[j * 41 + i], b = F[j * 41 + i + 1], cc = F[(j + 1) * 41 + i + 1], d = F[(j + 1) * 41 + i]; int code = (a > iso) | (b > iso) << 1 | (cc > iso) << 2 | (d > iso) << 3; if (code == 0 || code == 15) continue;
+        float x0 = i * cs, y0 = j * cs; auto lerp = [&](float p, float q) { return (iso - p) / (q - p + 1e-6f); };
+        float ex[4][2] = {{x0 + cs * lerp(a, b), y0}, {x0 + cs, y0 + cs * lerp(b, cc)}, {x0 + cs * lerp(d, cc), y0 + cs}, {x0, y0 + cs * lerp(a, d)}};
+        static const int8_t tbl[16][4] = {{-1},{3,0,-1},{0,1,-1},{3,1,-1},{1,2,-1},{3,0,1,2},{0,2,-1},{3,2,-1},{2,3,-1},{2,0,-1},{0,1,2,3},{2,1,-1},{1,3,-1},{1,0,-1},{0,3,-1},{-1}};
+        for (int e = 0; e < 4 && tbl[code][e] >= 0; e += 2) { int p = tbl[code][e], q = tbl[code][e + 1]; if (inCircle(ex[p][0], ex[p][1], 114) && inCircle(ex[q][0], ex[q][1], 114)) stitch(ex[p][0], ex[p][1], ex[q][0], ex[q][1], 1.7f, c); } } }
+    G.c += 0.006f; }
+  consumeTouch(); }
+// 59 shibori: hold to let dye bleed out in stitched rings from the finger
+static void initTShibori() { fillGround(INDIGO, true); G.a = 0; }
+static void stepTShibori() {
+  if (TS.ev == 0) { G.a = 3; G.x = TS.x; G.y = TS.y; }
+  if (TS.down && G.a < 70) { int segs = 10 + (int)G.a / 2; for (int k = 0; k < segs; k++) { float a0 = 6.2832f * k / segs + frandr(-0.1f, 0.1f), r = G.a + frandr(-1.5f, 1.5f); float x = G.x + r * cosf(a0), y = G.y + r * sinf(a0); if (inCircle(x, y, 114) && frand() < 0.8f) stitch(x, y, x + cosf(a0) * 3, y + sinf(a0) * 3, 1.5f, shade(CREAM, 0.85f + 0.15f * frand())); } G.a += 2.2f; }
+  consumeTouch(); }
+// 60 life: paint live cells with your finger; the automaton carries on
+static void initTLife() { initLife(); }
+static void stepTLife() {
+  if (TS.down) { const int N = 24; const float c = 9.5f, o = 120 - c * N / 2; int i = (int)((TS.x - o) / c), j = (int)((TS.y - o) / c); if (i >= 0 && i < N && j >= 0 && j < N) { G.cells[j * N + i] = 1; if (i + 1 < N) G.cells[j * N + i + 1] = 1; if (j + 1 < N) G.cells[(j + 1) * N + i] = 1; } }
+  stepLife(); consumeTouch(); }
+// 61 truchet: tap a tile to flip it
+static void initTTruchet() { initTruchet(); if (ground == SOOT) { G.pcol = CREAM; for (int j = 0; j < 8; j++) for (int i = 0; i < 8; i++) drawTruchetTile(i, j, G.pcol); } }
+static void stepTTruchet() {
+  if (TS.ev == 0) { int i = constrain((int)(TS.x / 30), 0, 7), j = constrain((int)(TS.y / 30), 0, 7); TR[j * 8 + i] ^= 1;
+    for (int y = j * 30; y < j * 30 + 30; y++) for (int x = i * 30; x < i * 30 + 30; x++) if (inCircle(x, y, 121)) frameBuf[y * GW + x] = ground; drawTruchetTile(i, j, G.pcol); }
+  consumeTouch(); }
+
 // ---------------- dispatch ----------------
 static const bool GEN_EVOLVING[GEN_COUNT] = {true, false, false, true, true, true, false, true, false, true, false, false,
                                             false, false, false, false, false, false, false, false, false, false,
                                             false, false, false, false, false, false, false, false, false, false,
-                                            false, true, true, false, false, false, true, false, false, true};
-static void genInit(int id) { G.id = id; G.steps = 0; genComplete = false; genEvolving = GEN_EVOLVING[id]; slowFade = 0;
+                                            false, true, true, false, false, false, true, false, false, true,
+                                            true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true};
+static void genInit(int id) { G.id = id; G.steps = 0; genComplete = false; genEvolving = GEN_EVOLVING[id]; slowFade = 0; TS.down = false; TS.ev = -1;
   switch (id) { case 0: initWander(); break; case 1: initSpiro(); break; case 2: initVine(); break; case 3: initLiss(); break; case 4: initSash(); drawSash(); break;
                 case 5: initPatch(); break; case 6: initMand(); break; case 7: initFlow(); break; case 8: initPhyl(); break; case 9: initLife(); break; case 10: grannyNew(false); break; case 11: grannyNew(true); break; case 32: initTuring(); break; case 33: initTruchet(); break; case 34: initFlock(); break; case 35: initDLA(); break; case 36: initPack(); break;
                 case 37: initSub(); break; case 38: initContours(); break; case 39: initAttr(); break; case 40: initHarm(); break; case 41: initMolnar(); break;
+                case 42: initTSeam(); break; case 43: initTSatin(); break; case 44: initTBloom(); break; case 45: initTRipple(); break; case 46: initTKnots(); break;
+                case 47: initTFlock(); break; case 48: initTCrystal(); break; case 49: initTVine(); break; case 50: initTWeb(); break; case 51: initTGranny(); break;
+                case 52: initTRose(); break; case 53: initTAsawa(); break; case 54: initTMend(); break; case 55: initTButtons(); break; case 56: initTKaleido(); break;
+                case 57: initTString(); break; case 58: initTContours(); break; case 59: initTShibori(); break; case 60: initTLife(); break; case 61: initTTruchet(); break;
                 default: if (id >= 22) asawaNew(id - 22); else floraInit(id - 12); } }
 static void genStep() {
   if (genComplete) {
@@ -558,6 +746,10 @@ static void genStep() {
   switch (G.id) { case 0: stepWander(); break; case 1: stepSpiro(); break; case 2: stepVine(); break; case 3: stepLiss(); break; case 4: stepSash(); break;
                   case 5: stepPatch(); break; case 6: stepMand(); break; case 7: stepFlow(); break; case 8: stepPhyl(); break; case 9: stepLife(); break; case 10: grannyStep(false); break; case 11: grannyStep(true); break; case 32: stepTuring(); break; case 33: stepTruchet(); break; case 34: stepFlock(); break; case 35: stepDLA(); break; case 36: stepPack(); break;
                   case 37: stepSub(); break; case 38: stepContours(); break; case 39: stepAttr(); break; case 40: stepHarm(); break; case 41: stepMolnar(); break;
+                  case 42: stepTSeam(); break; case 43: stepTSatin(); break; case 44: stepTBloom(); break; case 45: stepTRipple(); break; case 46: stepTKnots(); break;
+                  case 47: stepTFlock(); break; case 48: stepTCrystal(); break; case 49: stepTVine(); break; case 50: stepTWeb(); break; case 51: stepTGranny(); break;
+                  case 52: stepTRose(); break; case 53: stepTAsawa(); break; case 54: stepTMend(); break; case 55: stepTButtons(); break; case 56: stepTKaleido(); break;
+                  case 57: stepTString(); break; case 58: stepTContours(); break; case 59: stepTShibori(); break; case 60: stepTLife(); break; case 61: stepTTruchet(); break;
                   default: if (G.id >= 22) asawaStep(); else floraStep(); }
   G.steps++;
 }

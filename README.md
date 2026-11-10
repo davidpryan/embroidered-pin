@@ -34,7 +34,11 @@ The data partition is 13.3 MB. Build-style pieces cost 150–800 KB each; full-s
 (ripple, spiral, mandala) cost 2–3 MB. The page refuses to build past the limit.
 
 ## Controls on the pin
-tap = next piece · hold 1 s = replay · move = wake · still 60 s = deep sleep (IMU wake-on-motion)
+The CST816S touch controller's gesture engine is wired up:
+swipe **left** = next piece · swipe **right** = previous · swipe **up / down** = brightness · **double-tap** = replay ·
+**long-press** = pin this piece for an hour · **tap** = next piece (except in touch-reactive pieces, where taps and drags
+are input: draw seams, plant flowers, sculpt an Asawa form, flip Truchet tiles, scatter the flock…). 20 reactive pieces in the
+`touch-reactive` set. Move = wake · still = deep sleep (IMU wake-on-motion, or touch if enabled in settings).
 
 ## Adding animations
 Write a generator (see `tools/gen/gen_bold.py` for the simplest), render frames to a folder,

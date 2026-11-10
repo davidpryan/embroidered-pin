@@ -85,7 +85,7 @@
     <span id="fw"></span>
   </div>
   <div class="prog"><i id="prog"></i></div>
-  <div id="log">Pick pieces, plug in a pin (hold BOOT, tap RESET, release), then Flash. Chrome or Edge on desktop. Generative pieces are code on the pin — they cost no flash and never repeat.</div>
+  <div id="log">Pick pieces, plug in a pin (hold BOOT, tap RESET, release), then Flash. Chrome or Edge on desktop. Generative pieces are code on the pin — they cost no flash and never repeat. On the pin: swipe ← → next/previous, swipe ↑ ↓ brightness, double-tap replay, long-press pins a piece; in touch pieces, your finger is the needle.</div>
 </footer>
 <script type="module">
 import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.6.0/bundle.js";
@@ -181,7 +181,7 @@ function render() {
       <div class="tick">${sel.has(n)?'✓':''}</div>
       <img src="thumbs/${n}.${anim?'gif':'png'}" loading="lazy" alt="${n}">
       <div class="n"><span>${n.replace(/_/g,' ')}</span><span>${p.gen ? 'on-device' : fmt(p.bytes)}</span></div>
-      <div class="s"><span class="tag">${p.set}</span>${p.gen ? (n.endsWith('_slow') ? '<span class="tag" style="color:#9cd">slow · continuous</span>' : '<span class="tag" style="color:#d6a83a">generative ∞</span>') : `<span class="tag">${p.frames} fr</span>`}${p.loop?'<span class="tag loop">loop</span>':''}${p.bg?'<span class="tag">ground</span>':''}</div>
+      <div class="s"><span class="tag">${p.set}</span>${p.gen ? (n.endsWith('_slow') ? '<span class="tag" style="color:#9cd">slow · continuous</span>' : n.startsWith('touch_') ? '<span class="tag" style="color:#e8a">touch ✋</span>' : '<span class="tag" style="color:#d6a83a">generative ∞</span>') : `<span class="tag">${p.frames} fr</span>`}${p.loop?'<span class="tag loop">loop</span>':''}${p.bg?'<span class="tag">ground</span>':''}</div>
     </div>`; }).join('');
   document.querySelectorAll('#sets .chip').forEach(c => c.classList.toggle('on', activeSets.has(c.dataset.set)));
   const u = used(), pct = Math.min(100, u / CAP * 100);
