@@ -852,5 +852,101 @@
 "loop": false,
 "bg": true,
 "bytes": 149616
+},
+"gen_wander": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_spirograph": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_vine": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_lissajous": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_sashiko_drift": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_patchwork": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_mandala": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_flowfield": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_phyllotaxis": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_life_x": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_granny_square": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_granny_shapes": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
 }
 }

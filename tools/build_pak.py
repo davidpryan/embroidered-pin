@@ -20,10 +20,10 @@ def build(names):
     for n in names:
         bgp, dlp = os.path.join(DATA, n + ".bg"), os.path.join(DATA, n + ".dlt")
         bg = open(bgp, "rb").read() if os.path.exists(bgp) else b""
-        dl = open(dlp, "rb").read()
+        dl = open(dlp, "rb").read() if os.path.exists(dlp) else b""
         bg_off = base + len(blobs); blobs += bg
         dl_off = base + len(blobs); blobs += dl
-        entries.append(struct.pack("<32sIIIIII", n.encode()[:31].ljust(32, b"\0"), pieces[n]["frames"], 1 if pieces[n]["loop"] else 0, bg_off, len(bg), dl_off, len(dl)))
+        entries.append(struct.pack("<32sIIIIII", n.encode()[:31].ljust(32, b"\0"), pieces[n]["frames"], (1 if pieces[n]["loop"] else 0) | (2 if pieces[n].get("gen") else 0), bg_off, len(bg), dl_off, len(dl)))
     return b"PINPAK01" + struct.pack("<I", len(names)) + b"".join(entries) + bytes(blobs)
 
 if __name__ == "__main__":

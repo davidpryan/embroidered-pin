@@ -79,12 +79,17 @@ Arduino_DataBus *bus = new Arduino_ESP32SPI(PIN_LCD_DC, PIN_LCD_CS, PIN_LCD_SCLK
 Arduino_GFX *gfx = new Arduino_GC9A01(bus, PIN_LCD_RST, 0, true);
 
 uint16_t *frameBuf; uint8_t *recBuf;
-struct Piece { char name[32]; int frames; bool loop; uint32_t bgOff, bgLen, dltOff, dltLen; };
+#include "generative.h"
+struct Piece { char name[32]; int frames; bool loop; bool gen; int genId; uint32_t bgOff, bgLen, dltOff, dltLen; };
 const esp_partition_t *part;
 Piece pieces[MAX_PIECES]; int nPieces = 0;
 int order[MAX_PIECES]; int orderPos = 0;
 int cur = 0; int frameIdx = 0; uint32_t dltPos = 0, dltEnd = 0, rec1Pos = 0, loopUntil = 0;
-enum Phase { PLAYING, HOLDING } phase = PLAYING;
+enum Phase { PLAYING, HOLDING, GENERATING } phase = PLAYING;
+uint32_t genDeadline = 0;
+#define GEN_MIN_MS  120000UL   // how long a generative piece runs
+#define GEN_MAX_MS  300000UL
+#define GEN_STEP_MS 60
 uint32_t nextFrameAt = 0, holdUntil = 0, pieceDeadline = 0, nextStir = 0, lastMotion = 0, boostUntil = 0;
 uint8_t currentBL = 255;
 RTC_DATA_ATTR int savedPiece = 0;
@@ -108,7 +113,7 @@ bool loadPak() {
     uint8_t e[56]; esp_partition_read(part, 12 + i * 56, e, 56);
     memcpy(pieces[i].name, e, 32); pieces[i].name[31] = 0;
     uint32_t v[6]; memcpy(v, e + 32, 24);
-    pieces[i].frames = v[0]; pieces[i].loop = v[1] & 1; pieces[i].bgOff = v[2]; pieces[i].bgLen = v[3]; pieces[i].dltOff = v[4]; pieces[i].dltLen = v[5];
+    pieces[i].frames = v[0]; pieces[i].loop = v[1] & 1; pieces[i].gen = v[1] & 2; pieces[i].genId = pieces[i].gen ? genIndex(pieces[i].name) : -1; pieces[i].bgOff = v[2]; pieces[i].bgLen = v[3]; pieces[i].dltOff = v[4]; pieces[i].dltLen = v[5];
   }
   nPieces = count;
   for (int i = 0; i < nPieces; i++) order[i] = i;
@@ -139,6 +144,7 @@ bool nextDelta() {
 void startPiece(int p, bool fromGround, bool stir = false) {
   cur = p; savedPiece = p;
   if (!stir) pieceDeadline = 0;
+  if (pieces[p].gen && pieces[p].genId >= 0) { genInit(pieces[p].genId); blit(); phase = GENERATING; genDeadline = millis() + random(GEN_MIN_MS, GEN_MAX_MS); nextFrameAt = millis(); return; }
   dltPos = pieces[p].dltOff; dltEnd = pieces[p].dltOff + pieces[p].dltLen;
   uint32_t len0 = 0; if (dltPos + 4 <= dltEnd) esp_partition_read(part, dltPos, &len0, 4);
   rec1Pos = dltPos + 4 + len0;
@@ -217,9 +223,12 @@ void loop() {
   }
   uint32_t idle = now - lastMotion;
   if (now < boostUntil) setBacklight(BL_BOOST); else if (idle > DIM_AFTER_MS) setBacklight(BL_DIM); else setBacklight(BL_NORMAL);
-  if (idle > SLEEP_AFTER_MS && phase == HOLDING) deepSleep(false);
+  if (idle > SLEEP_AFTER_MS && phase != PLAYING) deepSleep(false);
 
-  if (phase == PLAYING) {
+  if (phase == GENERATING) {
+    if (now >= genDeadline) { fadeOut(); startPiece(nextIndex(), true); }
+    else if (now >= nextFrameAt) { genStep(); blit(); nextFrameAt = now + GEN_STEP_MS; }
+  } else if (phase == PLAYING) {
     if (now >= nextFrameAt) {
       if (frameIdx < pieces[cur].frames && nextDelta()) { blit(); frameIdx++; nextFrameAt = now + FRAME_MS; }
       else if (pieces[cur].loop && now < loopUntil) {           // wrap: decode last->first record, then continue from frame 1
@@ -234,5 +243,5 @@ void loop() {
   }
   static uint32_t lastBatt = 0;
   if (now - lastBatt > 30000) { lastBatt = now; float v = batteryV(); if (v < BATT_LOW_V && v < 4.25f) deepSleep(true); }
-  delay(phase == PLAYING ? 3 : 40);
+  delay(phase == HOLDING ? 40 : 3);
 }

@@ -1,0 +1,279 @@
+// generative.h — ten procedural stitching patterns drawn live on the pin.
+// Each has init() (new random parameters) and step() (adds a few stitches).
+// Old thread slowly fades into the ground so the piece evolves forever.
+#pragma once
+#include <Arduino.h>
+#include <math.h>
+
+extern uint16_t *frameBuf;
+#define GW 240
+#define GH 240
+#define GEN_COUNT 12
+static const char *GEN_NAMES[GEN_COUNT] = {"gen_wander", "gen_spirograph", "gen_vine", "gen_lissajous", "gen_sashiko_drift",
+                                           "gen_patchwork", "gen_mandala", "gen_flowfield", "gen_phyllotaxis", "gen_life_x", "gen_granny_square", "gen_granny_shapes"};
+
+// ---------------- palette / colour helpers ----------------
+static inline uint16_t C565(int r, int g, int b) { return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3); }
+static inline void C888(uint16_t c, int &r, int &g, int &b) { r = (c >> 8) & 0xF8; g = (c >> 3) & 0xFC; b = (c << 3) & 0xF8; }
+static uint16_t shade(uint16_t c, float f) { int r, g, b; C888(c, r, g, b); r = constrain(int(r * f), 0, 255); g = constrain(int(g * f), 0, 255); b = constrain(int(b * f), 0, 255); return C565(r, g, b); }
+static uint16_t lerp565(uint16_t a, uint16_t b, int t) { int ar, ag, ab, br, bg, bb; C888(a, ar, ag, ab); C888(b, br, bg, bb); return C565(ar + (br - ar) * t / 256, ag + (bg - ag) * t / 256, ab + (bb - ab) * t / 256); }
+static const uint16_t PAL[] = {C565(214, 168, 58), C565(124, 34, 42), C565(72, 132, 130), C565(236, 226, 204), C565(96, 58, 92), C565(178, 92, 52), C565(132, 150, 100)};
+static const uint16_t CREAM = C565(238, 230, 210), INDIGO = C565(38, 52, 96), VERM = C565(196, 66, 44), SOOT = C565(30, 27, 29);
+static uint16_t ground = 0, groundShadow = 0;
+static inline bool inCircle(float x, float y, float r = 118) { float dx = x - 120, dy = y - 120; return dx * dx + dy * dy < r * r; }
+static float frand() { return random(0, 10000) / 10000.0f; }
+static float frandr(float a, float b) { return a + (b - a) * frand(); }
+
+// ---------------- drawing primitives ----------------
+static inline void px(int x, int y, uint16_t c) { if ((unsigned)x < GW && (unsigned)y < GH) frameBuf[y * GW + x] = c; }
+static void disc(float cx, float cy, float r, uint16_t c) {
+  int x0 = floorf(cx - r), x1 = ceilf(cx + r), y0 = floorf(cy - r), y1 = ceilf(cy + r); float r2 = r * r;
+  for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++) { float dx = x + 0.5f - cx, dy = y + 0.5f - cy; if (dx * dx + dy * dy <= r2) px(x, y, c); }
+}
+static void thick(float x0, float y0, float x1, float y1, float w, uint16_t c) {
+  float dx = x1 - x0, dy = y1 - y0, L = sqrtf(dx * dx + dy * dy); int n = max(1, int(L / 0.6f));
+  for (int i = 0; i <= n; i++) { float t = (float)i / n; disc(x0 + dx * t, y0 + dy * t, w * 0.5f, c); }
+}
+// a thread: shadow, body, highlight ridge
+static void stitch(float x0, float y0, float x1, float y1, float w, uint16_t c) {
+  thick(x0 + 0.6f, y0 + 0.9f, x1 + 0.6f, y1 + 0.9f, w, groundShadow);
+  thick(x0, y0, x1, y1, w, shade(c, 0.82f));
+  thick(x0, y0, x1, y1, w * 0.6f, c);
+  if (w >= 2.2f) thick(x0 - 0.3f, y0 - 0.5f, x1 - 0.3f, y1 - 0.5f, w * 0.25f, shade(c, 1.3f));
+}
+static void knot(float x, float y, float r, uint16_t c) {
+  disc(x, y + 1, r, groundShadow); disc(x, y, r, shade(c, 0.7f)); disc(x, y, r * 0.78f, c); disc(x - r * 0.3f, y - r * 0.35f, r * 0.3f, shade(c, 1.35f));
+}
+static void dashes(float x0, float y0, float x1, float y1, float dash, float gap, float w, uint16_t c) {
+  float dx = x1 - x0, dy = y1 - y0, L = sqrtf(dx * dx + dy * dy); if (L < 0.5f) return; dx /= L; dy /= L;
+  for (float p = 0; p < L; p += dash + gap) { float e = min(L, p + dash); if (inCircle(x0 + dx * p, y0 + dy * p)) stitch(x0 + dx * p, y0 + dy * p, x0 + dx * e, y0 + dy * e, w, c); }
+}
+static void fillGround(uint16_t col, bool linen) {
+  ground = col; groundShadow = shade(col, 0.6f);
+  int r, g, b; C888(col, r, g, b);
+  for (int y = 0; y < GH; y++) {
+    int rowN = linen ? (int)((y * 2654435761u) >> 29) - 4 : 0;
+    for (int x = 0; x < GW; x++) {
+      int n = linen ? rowN + (int)(((x * 2246822519u) ^ (y * 3266489917u)) >> 29) - 4 : 0;
+      frameBuf[y * GW + x] = inCircle(x, y, 121) ? C565(constrain(r + n, 0, 255), constrain(g + n, 0, 255), constrain(b + n, 0, 255)) : 0;
+    }
+  }
+}
+static void fadeToGround(int amount) { for (int i = 0; i < GW * GH; i++) if (frameBuf[i] != ground) frameBuf[i] = lerp565(frameBuf[i], ground, amount); }
+
+// ---------------- generator state ----------------
+struct Gen {
+  int id = 0; int steps = 0;
+  float a, b, c, d, e, f, x, y, ang, hue;          // free parameters
+  int i, n, col; uint16_t pcol;
+  uint8_t cells[32 * 32]; uint8_t cells2[32 * 32];
+  float px_[64], py_[64], pvx[64], pvy[64]; uint16_t pc[64];
+  float branchX[40], branchY[40], branchA[40], branchL[40]; int branches;
+};
+static Gen G;
+static uint16_t palRand() { return PAL[random(0, 7)]; }
+
+// ---- 0 wandering seam: a running stitch with momentum, re-entering with a new colour
+static void initWander() { uint16_t g = random(2) ? SOOT : C565(232, 224, 204); fillGround(g, g != SOOT); G.x = 120; G.y = 120; G.ang = frandr(0, 6.28f); G.pcol = palRand(); G.a = frandr(0.1f, 0.35f); }
+static void stepWander() {
+  for (int k = 0; k < 3; k++) {
+    G.ang += frandr(-G.a, G.a);
+    float nx = G.x + cosf(G.ang) * 6, ny = G.y + sinf(G.ang) * 6;
+    if (!inCircle(nx, ny, 112)) { G.ang = atan2f(120 - G.y, 120 - G.x) + frandr(-0.8f, 0.8f); G.pcol = palRand(); G.x = 120 + cosf(G.ang + 3.14f) * 100; G.y = 120 + sinf(G.ang + 3.14f) * 100; continue; }
+    stitch(G.x, G.y, nx - cosf(G.ang) * 1.6f, ny - sinf(G.ang) * 1.6f, 2.4f, G.pcol);
+    G.x = nx; G.y = ny;
+  }
+  if (G.steps % 40 == 39) fadeToGround(10);
+}
+// ---- 1 spirograph: hypotrochoid satin, new gears each pass
+static void initSpiro() { fillGround(SOOT, false); G.a = random(40, 100); G.b = random(7, 45); G.c = random(10, 70); G.hue = 0; G.pcol = palRand(); G.i = 0; G.n = random(2, 7); }
+static void stepSpiro() {
+  float k = (G.a - G.b) / G.b;
+  for (int s = 0; s < 6; s++) {
+    float t0 = G.i * 0.05f, t1 = t0 + 0.05f;
+    float x0 = 120 + (G.a - G.b) * cosf(t0) + G.c * cosf(k * t0), y0 = 120 + (G.a - G.b) * sinf(t0) - G.c * sinf(k * t0);
+    float x1 = 120 + (G.a - G.b) * cosf(t1) + G.c * cosf(k * t1), y1 = 120 + (G.a - G.b) * sinf(t1) - G.c * sinf(k * t1);
+    if (inCircle(x0, y0) && inCircle(x1, y1)) stitch(x0, y0, x1, y1, 2.6f, G.pcol);
+    G.i++;
+    if (G.i % 500 == 0) G.pcol = palRand();
+  }
+  if (G.i > 3000 * G.n / 3) { fadeToGround(90); G.a = random(40, 100); G.b = random(7, 45); G.c = random(10, 70); G.i = 0; }
+  else if (G.steps % 30 == 0) fadeToGround(4);
+}
+// ---- 2 vine: branching growth with leaves and knot flowers
+static void initVine() { fillGround(C565(232, 224, 204), true); G.branches = 1; G.branchX[0] = 120 + frandr(-40, 40); G.branchY[0] = 236; G.branchA[0] = -1.57f + frandr(-0.3f, 0.3f); G.branchL[0] = 1; }
+static void stepVine() {
+  if (G.branches == 0 || G.steps % 400 == 399) { fadeToGround(60); G.branches = 1; G.branchX[0] = frandr(30, 210); G.branchY[0] = frandr(30, 210); G.branchA[0] = frandr(0, 6.28f); G.branchL[0] = 1; }
+  for (int bi = 0; bi < G.branches; bi++) {
+    float &x = G.branchX[bi], &y = G.branchY[bi], &a = G.branchA[bi];
+    a += frandr(-0.35f, 0.35f);
+    float nx = x + cosf(a) * 4, ny = y + sinf(a) * 4;
+    if (!inCircle(nx, ny, 110)) { G.branchX[bi] = G.branchX[G.branches - 1]; G.branchY[bi] = G.branchY[G.branches - 1]; G.branchA[bi] = G.branchA[G.branches - 1]; G.branches--; bi--; continue; }
+    stitch(x, y, nx, ny, 2.6f, C565(86, 110, 64));
+    x = nx; y = ny;
+    if (frand() < 0.12f) {   // leaf: a short fat satin stroke to one side
+      float la = a + (random(2) ? 1.1f : -1.1f); for (int l = 0; l < 4; l++) stitch(x + cosf(la) * 2 + cosf(a) * l, y + sinf(la) * 2 + sinf(a) * l, x + cosf(la) * (10 - fabsf(l - 1.5f) * 2), y + sinf(la) * (10 - fabsf(l - 1.5f) * 2), 1.6f, C565(132, 150, 100));
+    }
+    if (frand() < 0.04f) { uint16_t fc = palRand(); for (int p = 0; p < 6; p++) knot(x + cosf(p * 1.05f) * 4, y + sinf(p * 1.05f) * 4, 2.2f, fc); knot(x, y, 2.0f, C565(214, 168, 58)); }
+    if (frand() < 0.05f && G.branches < 40) { G.branchX[G.branches] = x; G.branchY[G.branches] = y; G.branchA[G.branches] = a + frandr(-1.2f, 1.2f); G.branches++; }
+  }
+}
+// ---- 3 lissajous chain stitch with drifting frequencies
+static void initLiss() { fillGround(C565(232, 224, 204), true); G.a = random(1, 5); G.b = random(1, 5); G.c = 0; G.d = frandr(0, 3.14f); G.i = 0; G.pcol = palRand(); }
+static void stepLiss() {
+  for (int s = 0; s < 4; s++) {
+    float t = G.i * 0.045f, t1 = t + 0.045f;
+    float ax = G.a + G.c * 0.001f, bx = G.b;
+    float x0 = 120 + 84 * sinf(ax * t + G.d), y0 = 120 + 84 * sinf(bx * t), x1 = 120 + 84 * sinf(ax * t1 + G.d), y1 = 120 + 84 * sinf(bx * t1);
+    // chain stitch: small loop along the segment
+    float mx = (x0 + x1) / 2, my = (y0 + y1) / 2, ang = atan2f(y1 - y0, x1 - x0);
+    for (int k = 0; k < 10; k++) { float u = k * 0.628f, v = u + 0.628f; stitch(mx + cosf(ang) * 2.2f * cosf(u) - sinf(ang) * 1.3f * sinf(u), my + sinf(ang) * 2.2f * cosf(u) + cosf(ang) * 1.3f * sinf(u), mx + cosf(ang) * 2.2f * cosf(v) - sinf(ang) * 1.3f * sinf(v), my + sinf(ang) * 2.2f * cosf(v) + cosf(ang) * 1.3f * sinf(v), 1.3f, G.pcol); }
+    G.i++; G.c += 1;
+  }
+  if (G.steps % 12 == 0) fadeToGround(9);
+  if (G.i % 700 == 0) { G.pcol = palRand(); if (frand() < 0.5f) G.b = random(1, 6); else G.a = random(1, 6); }
+}
+// ---- 4 sashiko drift: hitomezashi grid whose rows/cols keep flipping
+static void initSash() { fillGround(INDIGO, true); for (int i = 0; i < 64; i++) G.cells[i] = random(2); G.i = 0; }
+static void drawSash() {
+  const int sp = 12, n = 20; float o = 120 - sp * n / 2.0f;
+  for (int j = 0; j <= n; j++) for (int i = 0; i < n; i++) if ((i + G.cells[j]) % 2 == 0) { float x = o + i * sp, y = o + j * sp; if (inCircle(x + sp / 2, y, 112)) stitch(x + 1.5f, y, x + sp - 1.5f, y, 2.0f, CREAM); }
+  for (int i = 0; i <= n; i++) for (int j = 0; j < n; j++) if ((j + G.cells[32 + i]) % 2 == 0) { float x = o + i * sp, y = o + j * sp; if (inCircle(x, y + sp / 2, 112)) stitch(x, y + 1.5f, x, y + sp - 1.5f, 2.0f, VERM); }
+}
+static void stepSash() { if (G.steps % 12 == 0) { G.cells[random(0, 21) + (random(2) ? 32 : 0)] ^= 1; fillGround(INDIGO, true); drawSash(); } }
+// ---- 5 drifting patchwork: Voronoi scraps whose seeds wander, seams stitched
+static void initPatch() { G.n = random(6, 11); for (int i = 0; i < G.n; i++) { G.px_[i] = frandr(30, 210); G.py_[i] = frandr(30, 210); G.pvx[i] = frandr(-0.5f, 0.5f); G.pvy[i] = frandr(-0.5f, 0.5f); G.pc[i] = PAL[i % 7]; } ground = SOOT; groundShadow = 0; }
+static void stepPatch() {
+  if (G.steps % 8) return;
+  for (int i = 0; i < G.n; i++) { G.px_[i] += G.pvx[i]; G.py_[i] += G.pvy[i]; if (G.px_[i] < 30 || G.px_[i] > 210) G.pvx[i] = -G.pvx[i]; if (G.py_[i] < 30 || G.py_[i] > 210) G.pvy[i] = -G.pvy[i]; }
+  for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) {
+    if (!inCircle(x, y, 121)) { frameBuf[y * GW + x] = 0; continue; }
+    float best = 1e9, second = 1e9; int bi = 0;
+    for (int i = 0; i < G.n; i++) { float dx = x - G.px_[i], dy = y - G.py_[i], d = dx * dx + dy * dy; if (d < best) { second = best; best = d; bi = i; } else if (d < second) second = d; }
+    float edge = sqrtf(second) - sqrtf(best);
+    // satin texture: stripes at a per-cell angle; seams as cream running stitch
+    float ang = bi * 0.7f; float s = x * cosf(ang) + y * sinf(ang); int stripe = ((int)floorf(s / 1.5f)) & 1;
+    uint16_t c = stripe ? G.pc[bi] : shade(G.pc[bi], 0.82f);
+    if (edge < 1.4f) c = shade(SOOT, 1.2f); else if (edge < 4.0f && ((int)(x + y) / 6) % 2 == 0) c = CREAM;
+    frameBuf[y * GW + x] = c;
+  }
+}
+// ---- 6 generative mandala: rounds of clusters, random counts and colours, outward then reset
+static void initMand() { fillGround(SOOT, false); G.i = 1; G.n = random(5, 9); G.pcol = palRand(); G.f = frandr(0, 6.28f); G.e = 0; }
+static void stepMand() {
+  float ri = 10 + 13 * (G.i - 1), ro = ri + 11; int count = G.n + 5 * G.i;
+  int k = (int)G.e;
+  if (k < count) {
+    float a = 6.2832f * k / count - 1.57f + G.f;
+    for (int o = -1; o <= 1; o++) { float aa = a + o * 0.05f * (12.0f / G.i); stitch(120 + ri * cosf(a), 120 + ri * sinf(a), 120 + ro * cosf(aa), 120 + ro * sinf(aa), 2.6f, G.pcol); }
+    G.e += 1;
+  } else { G.i++; G.e = 0; G.pcol = palRand(); G.f += frandr(-0.2f, 0.2f); if (ro > 110) { fadeToGround(120); G.i = 1; G.n = random(5, 9); } }
+}
+// ---- 7 flow field: short stitches following slowly rotating value noise
+static float vnoise(float x, float y) {
+  int xi = floorf(x), yi = floorf(y); float fx = x - xi, fy = y - yi;
+  auto h = [](int a, int b) { uint32_t v = a * 374761393u + b * 668265263u; v = (v ^ (v >> 13)) * 1274126177u; return (v & 0xFFFF) / 65535.0f; };
+  float a = h(xi, yi), b = h(xi + 1, yi), c = h(xi, yi + 1), d = h(xi + 1, yi + 1); fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+}
+static void initFlow() { fillGround(C565(232, 224, 204), true); G.a = frandr(0, 100); G.b = frandr(0, 100); G.c = 0; G.pcol = palRand(); }
+static void stepFlow() {
+  for (int k = 0; k < 6; k++) {
+    float x = frandr(10, 230), y = frandr(10, 230); if (!inCircle(x, y, 112)) continue;
+    float ang = vnoise(x / 60 + G.a, y / 60 + G.b) * 12.56f + G.c;
+    stitch(x, y, x + cosf(ang) * 9, y + sinf(ang) * 9, 1.8f, G.pcol);
+  }
+  G.c += 0.004f;
+  if (G.steps % 20 == 0) fadeToGround(5);
+  if (G.steps % 300 == 299) G.pcol = palRand();
+}
+// ---- 8 phyllotaxis: golden-angle knots growing outward, angle slightly off each cycle
+static void initPhyl() { uint16_t g = random(2) ? SOOT : C565(232, 224, 204); fillGround(g, g != SOOT); G.i = 0; G.a = 2.39996f + frandr(-0.03f, 0.03f); G.b = frandr(5.5f, 7.5f); G.col = random(0, 7); }
+static void stepPhyl() {
+  for (int k = 0; k < 2; k++) {
+    float r = G.b * sqrtf((float)G.i), a = G.i * G.a;
+    if (r > 108) { fadeToGround(140); G.i = 0; G.a = 2.39996f + frandr(-0.03f, 0.03f); G.b = frandr(5.5f, 7.5f); G.col = random(0, 7); return; }
+    knot(120 + r * cosf(a), 120 + r * sinf(a), 2.2f + r / 60, PAL[(G.col + G.i / 40) % 7]); G.i++;
+  }
+}
+// ---- 9 life in cross-stitch: cellular automaton on aida, each live cell a cross
+static void initLife() { fillGround(C565(236, 229, 210), true); G.n = 0; for (int i = 0; i < 24 * 24; i++) G.cells[i] = frand() < 0.3f; }
+static void stepLife() {
+  if (G.steps % 10) return;
+  const int N = 24; const float c = 9.5f, o = 120 - c * N / 2;
+  fillGround(C565(236, 229, 210), true);
+  for (int j = 0; j < N; j++) for (int i = 0; i < N; i++) {
+    int cnt = 0; for (int dj = -1; dj <= 1; dj++) for (int di = -1; di <= 1; di++) if (di || dj) cnt += G.cells[((j + dj + N) % N) * N + (i + di + N) % N];
+    G.cells2[j * N + i] = G.cells[j * N + i] ? (cnt == 2 || cnt == 3) : (cnt == 3);
+    if (G.cells[j * N + i]) { float x = o + i * c, y = o + j * c; if (inCircle(x + c / 2, y + c / 2, 112)) { uint16_t col = PAL[(i / 6 + j / 6) % 7]; stitch(x + 1.5f, y + c - 1.5f, x + c - 1.5f, y + 1.5f, 1.8f, col); stitch(x + 1.5f, y + 1.5f, x + c - 1.5f, y + c - 1.5f, 1.8f, col); } }
+  }
+  int alive = 0; for (int i = 0; i < N * N; i++) { G.cells[i] = G.cells2[i]; alive += G.cells[i]; }
+  if (alive < 12 || G.steps % 1200 == 0) for (int i = 0; i < N * N; i++) G.cells[i] = frand() < 0.3f;
+}
+
+
+// ---- 10/11 generative granny: crochet a fresh square (or triangle/hexagon/circle) each time
+struct Granny { int sides, rounds, n, s, k, p, holdSteps; float step, inner0, skew, wobble; uint16_t pal[8]; bool done; } GR;
+static void yarnSeg(float x0, float y0, float x1, float y1, float w, uint16_t c) {
+  stitch(x0, y0, x1, y1, w, c);
+  float dx = x1 - x0, dy = y1 - y0, L = sqrtf(dx * dx + dy * dy); if (L < 1) return; dx /= L; dy /= L;
+  for (float t = w * 0.6f; t < L; t += w * 0.75f) thick(x0 + dx * t - dy * w * 0.3f - dx * w * 0.2f, y0 + dy * t + dx * w * 0.3f - dy * w * 0.2f, x0 + dx * t + dy * w * 0.3f + dx * w * 0.2f, y0 + dy * t - dx * w * 0.3f + dy * w * 0.2f, 0.7f, shade(c, 0.62f));
+}
+static void post(float bx, float by, float tx, float ty, uint16_t c) {
+  float mx = (bx + tx) / 2, my = (by + ty) / 2, dx = tx - bx, dy = ty - by, L = sqrtf(dx * dx + dy * dy) + 0.01f; float nx = -dy / L, ny = dx / L;
+  yarnSeg(bx, by, mx + nx * 0.9f, my + ny * 0.9f, 3.0f, c); yarnSeg(mx + nx * 0.9f, my + ny * 0.9f, tx, ty, 3.0f, c);
+}
+static void grannyNew(bool shapes) {
+  fillGround(SOOT, false);
+  GR.sides = shapes ? (int[]){3, 4, 6, 0}[random(0, 4)] : 4;
+  GR.rounds = GR.sides == 3 ? random(3, 5) : (GR.sides == 0 ? random(5, 8) : random(4, 6));
+  GR.step = GR.sides == 0 ? 13 : (GR.sides == 3 ? 20 : 13); GR.inner0 = GR.sides == 3 ? 12 : 10;
+  GR.skew = frandr(-0.12f, 0.12f); GR.wobble = shapes ? frandr(0, 1.2f) : 0;
+  int start = random(0, 7); for (int i = 0; i < 8; i++) GR.pal[i] = PAL[(start + i * (1 + random(0, 2))) % 7];
+  if (frand() < 0.3f) GR.pal[GR.rounds] = CREAM;   // cream border round, sometimes
+  GR.n = 1; GR.s = 0; GR.k = 0; GR.p = 0; GR.done = false; GR.holdSteps = 0;
+  // centre ring
+  for (int i = 0; i < 16; i++) { float a0 = i * 0.3927f, a1 = a0 + 0.3927f; yarnSeg(120 + 7 * cosf(a0), 120 + 7 * sinf(a0), 120 + 7 * cosf(a1), 120 + 7 * sinf(a1), 3.0f, GR.pal[0]); }
+}
+static void T(float x, float y, float rot, float &ox, float &oy) { ox = 120 + x * cosf(rot) - y * sinf(rot); oy = 120 + x * sinf(rot) + y * cosf(rot); }
+static void grannyStep(bool shapes) {
+  if (GR.done) { if (++GR.holdSteps > 250) { fadeToGround(255); grannyNew(shapes); } return; }
+  uint16_t col = GR.pal[GR.n % 8];
+  if (GR.sides == 0) {   // circular rounds
+    float ri = GR.inner0 + GR.step * (GR.n - 1), ro = ri + GR.step - 2; int count = 6 + 5 * GR.n;
+    float a = 6.2832f * GR.k / count - 1.5708f + GR.skew;
+    if (GR.p < 3) { float aa = a + (GR.p - 1) * 0.045f * (12.0f / GR.n); post(120 + ri * cosf(a), 120 + ri * sinf(a), 120 + ro * cosf(aa), 120 + ro * sinf(aa), col); GR.p++; }
+    else { float an = 6.2832f * (GR.k + 1) / count - 1.5708f + GR.skew, m = (a + an) / 2, o = 0.045f * 12.0f / GR.n;
+           yarnSeg(120 + ro * cosf(a + o), 120 + ro * sinf(a + o), 120 + (ro + 1.5f) * cosf(m), 120 + (ro + 1.5f) * sinf(m), 2.4f, col); yarnSeg(120 + (ro + 1.5f) * cosf(m), 120 + (ro + 1.5f) * sinf(m), 120 + ro * cosf(an - o), 120 + ro * sinf(an - o), 2.4f, col);
+           GR.p = 0; if (++GR.k >= count) { GR.k = 0; if (++GR.n > GR.rounds) GR.done = true; } }
+    return;
+  }
+  float half = 3.14159f / GR.sides, hi = GR.inner0 + GR.step * (GR.n - 1), ho = hi + GR.step - 2, hs = hi * tanf(half);
+  int per = max(1, (int)roundf(2 * hs / 11.5f)); float rot = 6.2832f * GR.s / GR.sides + GR.skew;
+  float x = -hs + 2 * hs * (GR.k + 0.5f) / per + frandr(-GR.wobble, GR.wobble) * 0.3f;
+  float bx, by, tx, ty;
+  if (GR.p < 3) { T(x, -hi + 1, rot, bx, by); T(x + (GR.p - 1) * 3.6f, -ho - frandr(0, GR.wobble), rot, tx, ty); post(bx, by, tx, ty, col); GR.p++; return; }
+  if (GR.k < per - 1) {   // chain-1 to the next cluster on this side
+    float xn = -hs + 2 * hs * (GR.k + 1.5f) / per; float ax, ay, mx, my, cx, cy;
+    T(x + 3.6f, -ho, rot, ax, ay); T((x + xn) / 2, -ho - 1.5f, rot, mx, my); T(xn - 3.6f, -ho, rot, cx, cy);
+    yarnSeg(ax, ay, mx, my, 2.4f, col); yarnSeg(mx, my, cx, cy, 2.4f, col);
+  } else {                // corner chain-2 to the next side
+    float rot2 = 6.2832f * (GR.s + 1) / GR.sides + GR.skew, xf = -hs + 2 * hs * 0.5f / per; float ax, ay, cx, cy;
+    T(x + 3.6f, -ho, rot, ax, ay); T(xf - 3.6f, -ho, rot2, cx, cy);
+    float cr = ho / cosf(half) + 1.5f, ac = rot + half - 1.5708f; float mx = 120 + cr * cosf(ac), my = 120 + cr * sinf(ac);
+    yarnSeg(ax, ay, mx, my, 2.4f, col); yarnSeg(mx, my, cx, cy, 2.4f, col);
+  }
+  GR.p = 0;
+  if (++GR.k >= per) { GR.k = 0; if (++GR.s >= GR.sides) { GR.s = 0; if (++GR.n > GR.rounds) GR.done = true; } }
+}
+
+// ---------------- dispatch ----------------
+static void genInit(int id) { G.id = id; G.steps = 0;
+  switch (id) { case 0: initWander(); break; case 1: initSpiro(); break; case 2: initVine(); break; case 3: initLiss(); break; case 4: initSash(); drawSash(); break;
+                case 5: initPatch(); break; case 6: initMand(); break; case 7: initFlow(); break; case 8: initPhyl(); break; case 9: initLife(); break; case 10: grannyNew(false); break; default: grannyNew(true); } }
+static void genStep() {
+  switch (G.id) { case 0: stepWander(); break; case 1: stepSpiro(); break; case 2: stepVine(); break; case 3: stepLiss(); break; case 4: stepSash(); break;
+                  case 5: stepPatch(); break; case 6: stepMand(); break; case 7: stepFlow(); break; case 8: stepPhyl(); break; case 9: stepLife(); break; case 10: grannyStep(false); break; default: grannyStep(true); }
+  G.steps++;
+}
+static int genIndex(const char *name) { for (int i = 0; i < GEN_COUNT; i++) if (strcmp(name, GEN_NAMES[i]) == 0) return i; return -1; }

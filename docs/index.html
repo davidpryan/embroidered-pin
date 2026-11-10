@@ -63,7 +63,7 @@
     <span id="fw"></span>
   </div>
   <div class="prog"><i id="prog"></i></div>
-  <div id="log">Pick pieces, plug in a pin (hold BOOT, tap RESET, release), then Flash. Chrome or Edge on desktop.</div>
+  <div id="log">Pick pieces, plug in a pin (hold BOOT, tap RESET, release), then Flash. Chrome or Edge on desktop. Generative pieces are code on the pin — they cost no flash and never repeat.</div>
 </footer>
 <script type="module">
 import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.6.0/bundle.js";
@@ -96,8 +96,8 @@ function render() {
     <div class="card ${sel.has(n)?'sel':''}" onclick="tog('${n}')" onmouseenter="this.querySelector('img').src='thumbs/${n}.gif'" onmouseleave="if(!${anim})this.querySelector('img').src='thumbs/${n}.png'">
       <div class="tick">${sel.has(n)?'✓':''}</div>
       <img src="thumbs/${n}.${anim?'gif':'png'}" loading="lazy" alt="${n}">
-      <div class="n"><span>${n.replace(/_/g,' ')}</span><span>${fmt(p.bytes)}</span></div>
-      <div class="s"><span class="tag">${p.set}</span><span class="tag">${p.frames} fr</span>${p.loop?'<span class="tag loop">loop</span>':''}${p.bg?'<span class="tag">ground</span>':''}</div>
+      <div class="n"><span>${n.replace(/_/g,' ')}</span><span>${p.gen ? 'on-device' : fmt(p.bytes)}</span></div>
+      <div class="s"><span class="tag">${p.set}</span>${p.gen ? '<span class="tag" style="color:#d6a83a">generative ∞</span>' : `<span class="tag">${p.frames} fr</span>`}${p.loop?'<span class="tag loop">loop</span>':''}${p.bg?'<span class="tag">ground</span>':''}</div>
     </div>`; }).join('');
   document.querySelectorAll('#sets .chip').forEach(c => c.classList.toggle('on', activeSets.has(c.dataset.set)));
   const u = used(), pct = Math.min(100, u / CAP * 100);
@@ -114,10 +114,10 @@ async function buildPak() {
   for (let i = 0; i < names.length; i++) {
     const n = names[i], p = pieces[n]; log(`fetching ${n} (${i+1}/${names.length})`, i > 0); prog(i / names.length * 0.3);
     const bg = p.bg ? new Uint8Array(await (await fetch(`data/${n}.bg`)).arrayBuffer()) : new Uint8Array(0);
-    const dl = new Uint8Array(await (await fetch(`data/${n}.dlt`)).arrayBuffer());
+    const dl = p.gen ? new Uint8Array(0) : new Uint8Array(await (await fetch(`data/${n}.dlt`)).arrayBuffer());
     const e = new Uint8Array(56); e.set(enc.encode(n).slice(0, 31), 0);
     const dv = new DataView(e.buffer);
-    dv.setUint32(32, p.frames, true); dv.setUint32(36, p.loop ? 1 : 0, true);
+    dv.setUint32(32, p.frames, true); dv.setUint32(36, (p.loop ? 1 : 0) | (p.gen ? 2 : 0), true);
     dv.setUint32(40, off, true); dv.setUint32(44, bg.length, true); off += bg.length;
     dv.setUint32(48, off, true); dv.setUint32(52, dl.length, true); off += dl.length;
     entries.push(e); blobs.push(bg, dl);
