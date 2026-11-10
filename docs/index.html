@@ -39,6 +39,17 @@
   #log { font:12px/1.4 ui-monospace, Menlo, monospace; color:var(--dim); max-height:64px; overflow:auto; white-space:pre-wrap; }
   .prog { height:6px; background:#262226; border-radius:3px; overflow:hidden; } .prog > i { display:block; height:100%; background:var(--gold); width:0; transition:width .2s; }
   #fw { font-size:13px; color:var(--dim); }
+  details.cfg { margin:0 0 16px; background:var(--card); border:1px solid var(--line); border-radius:14px; }
+  details.cfg summary { cursor:pointer; padding:12px 16px; font-weight:600; display:flex; justify-content:space-between; align-items:center; list-style:none; }
+  details.cfg summary::-webkit-details-marker { display:none; }
+  details.cfg summary .est { color:var(--dim); font-weight:400; font-size:13px; }
+  .cfgbody { padding:4px 16px 16px; display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:10px 22px; }
+  .cfgbody label { display:grid; grid-template-columns:1fr auto; gap:2px 8px; font-size:13px; color:var(--dim); align-items:center; }
+  .cfgbody label b { color:var(--ink); font-weight:500; font-variant-numeric:tabular-nums; }
+  .cfgbody input[type=range] { grid-column:1 / -1; width:100%; accent-color:var(--gold); }
+  .cfgbody .sec { grid-column:1 / -1; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); margin-top:6px; border-top:1px solid var(--line); padding-top:10px; }
+  .presets { grid-column:1 / -1; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .batt { font-size:13px; color:var(--dim); display:flex; gap:10px; align-items:center; }
 </style>
 </head>
 <body>
@@ -54,7 +65,18 @@
   <div class="meter"><div class="bar" id="bar"><i></i></div><div class="num" id="num"></div></div>
   <div class="tools" id="sets" style="grid-column:1 / -1"></div>
 </header>
-<main><div class="grid" id="grid"></div></main>
+<main>
+<details class="cfg" id="cfg">
+  <summary><span>Pin settings <span style="color:var(--dim);font-weight:400">— brightness, sleep, timing, battery</span></span><span class="est" id="est"></span></summary>
+  <div class="cfgbody" id="cfgbody">
+    <div class="presets">presets:
+      <span class="chip" data-preset="party">all-night party</span><span class="chip" data-preset="balanced">balanced</span><span class="chip" data-preset="longhaul">long haul</span>
+      <span class="chip" data-preset="reset">defaults</span>
+      <span class="batt"><button class="act ghost" id="readbatt" style="padding:5px 12px">Read battery over USB</button><span id="battv"></span></span>
+    </div>
+  </div>
+</details>
+<div class="grid" id="grid"></div></main>
 <footer>
   <div class="row">
     <button class="act" id="flash" onclick="flash()">Flash selection to pin</button>
@@ -68,6 +90,68 @@
 <script type="module">
 import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.6.0/bundle.js";
 const CAP = 0xCF0000, PAK_OFF = 0x310000;
+// ---------- settings (64-byte block in the archive header; firmware defaults mirror these) ----------
+const FIELDS = [
+  ['sec','Brightness'],
+  ['bl_normal','Backlight',10,100,'%',35],['bl_dim','Dimmed backlight',3,60,'%',8],['bl_boost','Touch boost',20,100,'%',78],
+  ['sec','Idle & sleep'],
+  ['dim_after_s','Dim after stillness',5,120,'s',20],['sleep_after_s','Sleep after stillness (0 = never)',0,600,'s',60],['wom_mg','Motion sensitivity (lower = more sensitive)',30,250,'mg',120],['touch_wake','Wake by touch instead of BOOT button',0,1,'',0],
+  ['sec','Timing'],
+  ['hold_min_s','Finished piece holds at least',15,600,'s',60],['hold_max_s','… at most',15,900,'s',180],['loop_min_s','Loops run at least',10,300,'s',40],['loop_max_s','… at most',10,600,'s',90],
+  ['gen_min_s','Generative slot at least',30,600,'s',120],['gen_max_s','… at most',30,900,'s',300],['gen_share','Share of slots that may be generative',0,100,'%',100],['gen_step_ms','Generative frame interval',40,250,'ms',60],
+  ['sec','Battery'],
+  ['batt_low_mv','Low-battery cutoff',3300,3600,'mV',3450],['batt_icon','Show battery glyph on wake when low',0,1,'',1],['cpu_mhz','CPU 80 MHz (0) / 160 MHz (1)',0,1,'',0],
+  ['capacity','Battery capacity (for the estimate only)',100,1500,'mAh',320],
+];
+const DEF = Object.fromEntries(FIELDS.filter(f=>f[0]!=='sec').map(f=>[f[0], f[5]]));
+let cfg = Object.assign({}, DEF, JSON.parse(localStorage.getItem('cfg') || '{}'));
+const PRESETS = { party: {bl_normal:70, bl_dim:20, dim_after_s:60, sleep_after_s:300, gen_share:60, hold_min_s:45, hold_max_s:120},
+                  balanced: {bl_normal:35, bl_dim:8, dim_after_s:20, sleep_after_s:60, gen_share:40, hold_min_s:60, hold_max_s:180},
+                  longhaul: {bl_normal:20, bl_dim:4, dim_after_s:10, sleep_after_s:30, gen_share:10, hold_min_s:120, hold_max_s:300, gen_step_ms:120, loop_min_s:20, loop_max_s:40},
+                  reset: DEF };
+function pct255(p) { return Math.round(p * 255 / 100); }
+function settingsBlock() {
+  const b = new Uint8Array(64), dv = new DataView(b.buffer); let o = 0;
+  b[o++] = pct255(cfg.bl_normal); b[o++] = pct255(cfg.bl_dim); b[o++] = pct255(cfg.bl_boost); b[o++] = cfg.cpu_mhz ? 160 : 80;
+  for (const k of ['dim_after_s','sleep_after_s','hold_min_s','hold_max_s','loop_min_s','loop_max_s','gen_min_s','gen_max_s','batt_low_mv']) { dv.setUint16(o, cfg[k], true); o += 2; }
+  b[o++] = cfg.wom_mg; b[o++] = cfg.gen_step_ms; b[o++] = cfg.gen_share; b[o++] = cfg.touch_wake; b[o++] = cfg.batt_icon;
+  return b;
+}
+function estimate() {
+  // rough current model (mA): sleep 0.3; awake base 14 (+10 at 160 MHz); backlight up to ~32 at 100%; static hold ~+4 draw; generative ~+22 (16 fps redraw); loops ~+14
+  const bl = cfg.bl_normal / 100 * 32, base = 14 + (cfg.cpu_mhz ? 10 : 0);
+  const gs = cfg.gen_share / 100, genFrac = Math.min(0.9, gs * 0.45), loopFrac = 0.12, staticFrac = 1 - genFrac - loopFrac;
+  const awake = base + bl + staticFrac * 4 + genFrac * 22 * (60 / cfg.gen_step_ms) + loopFrac * 14;
+  const hours = cfg.capacity * 0.92 / awake;
+  const worn = hours, pocket = cfg.sleep_after_s ? cfg.capacity * 0.92 / 0.3 / 24 : 0;
+  return `≈ ${hours.toFixed(1)} h worn & moving · ${(awake).toFixed(0)} mA` + (cfg.sleep_after_s ? ` · sleeps when still` : ` · never sleeps`);
+}
+function renderCfg() {
+  localStorage.setItem('cfg', JSON.stringify(cfg));
+  const body = document.getElementById('cfgbody'); const presets = body.querySelector('.presets');
+  body.innerHTML = ''; body.appendChild(presets);
+  for (const f of FIELDS) {
+    if (f[0] === 'sec') { const d = document.createElement('div'); d.className = 'sec'; d.textContent = f[1]; body.appendChild(d); continue; }
+    const [k, label, min, max, unit] = f; const l = document.createElement('label');
+    const shown = (k === 'cpu_mhz') ? (cfg[k] ? '160 MHz' : '80 MHz') : (max === 1 && min === 0) ? (cfg[k] ? 'on' : 'off') : `${cfg[k]} ${unit}`;
+    l.innerHTML = `<span>${label}</span><b>${shown}</b><input type="range" min="${min}" max="${max}" step="${k==='batt_low_mv'?10:1}" value="${cfg[k]}" data-k="${k}">`;
+    l.querySelector('input').oninput = e => { cfg[k] = +e.target.value; if (k==='hold_min_s' && cfg.hold_max_s < cfg[k]) cfg.hold_max_s = cfg[k]; if (k==='loop_min_s' && cfg.loop_max_s < cfg[k]) cfg.loop_max_s = cfg[k]; if (k==='gen_min_s' && cfg.gen_max_s < cfg[k]) cfg.gen_max_s = cfg[k]; renderCfg(); };
+    body.appendChild(l);
+  }
+  presets.querySelectorAll('[data-preset]').forEach(c => c.onclick = () => { cfg = Object.assign({}, DEF, {capacity: cfg.capacity}, PRESETS[c.dataset.preset]); renderCfg(); });
+  document.getElementById('readbatt').onclick = readBattery;
+  document.getElementById('est').textContent = estimate();
+}
+async function readBattery() {
+  const out = document.getElementById('battv');
+  if (!navigator.serial) { out.textContent = 'needs Chrome/Edge'; return; }
+  let port; try { out.textContent = 'pick the pin\'s port…'; port = await navigator.serial.requestPort(); await port.open({ baudRate: 115200 });
+    const reader = port.readable.getReader(); let buf = ''; const t0 = Date.now(); out.textContent = 'listening (reports every 10 s)…';
+    while (Date.now() - t0 < 15000) { const { value, done } = await reader.read(); if (done) break; buf += new TextDecoder().decode(value);
+      const m = buf.match(/BATT ([\d.]+) (USB|BAT)/); if (m) { const v = +m[1]; const pct = Math.max(0, Math.min(100, Math.round((v - 3.4) / 0.8 * 100))); out.textContent = m[2] === 'USB' ? `on USB power (${v} V) — unplug to read the cell` : `${v} V · ~${pct}%`; break; } }
+    reader.releaseLock(); await port.close(); if (!out.textContent.includes('V')) out.textContent = 'no reading — is the pin running the latest firmware?';
+  } catch (e) { out.textContent = 'could not read: ' + (e.message || e); try { await port?.close(); } catch {} }
+}
 const FW = [["firmware/bootloader.bin", 0x0], ["firmware/partitions.bin", 0x8000], ["firmware/boot_app0.bin", 0xe000], ["firmware/app.bin", 0x10000]];
 let pieces = {}, sel = new Set(JSON.parse(localStorage.getItem('sel') || '[]')), activeSets = new Set(), anim = false;
 const fmt = b => b >= 1e6 ? (b/1e6).toFixed(2)+' MB' : Math.round(b/1024)+' KB';
@@ -80,7 +164,7 @@ async function init() {
   document.getElementById('sets').innerHTML = sets.map(s => `<span class="chip" data-set="${s}">${s} <small>${Object.values(pieces).filter(p=>p.set===s).length}</small></span>`).join('');
   document.querySelectorAll('#sets .chip').forEach(c => c.onclick = () => { const s = c.dataset.set; activeSets.has(s) ? activeSets.delete(s) : activeSets.add(s); render(); });
   document.getElementById('q').oninput = render;
-  render();
+  renderCfg(); render();
   try { const r = await fetch(FW[3][0], { method: 'HEAD' }); document.getElementById('fw').textContent = r.ok ? 'firmware: ready (built by GitHub Actions)' : 'firmware: not built yet — check the Actions tab'; if (!r.ok) document.getElementById('withfw').checked = false; }
   catch { document.getElementById('fw').textContent = 'firmware: unavailable'; }
 }
@@ -110,7 +194,7 @@ function render() {
 // ---------- build the PINPAK01 archive in the browser ----------
 async function buildPak() {
   const names = [...sel]; const enc = new TextEncoder();
-  const blobs = []; let base = 12 + 56 * names.length, off = base; const entries = [];
+  const blobs = []; let base = 12 + 64 + 56 * names.length, off = base; const entries = [];
   for (let i = 0; i < names.length; i++) {
     const n = names[i], p = pieces[n]; log(`fetching ${n} (${i+1}/${names.length})`, i > 0); prog(i / names.length * 0.3);
     const bg = p.bg ? new Uint8Array(await (await fetch(`data/${n}.bg`)).arrayBuffer()) : new Uint8Array(0);
@@ -122,8 +206,8 @@ async function buildPak() {
     dv.setUint32(48, off, true); dv.setUint32(52, dl.length, true); off += dl.length;
     entries.push(e); blobs.push(bg, dl);
   }
-  const out = new Uint8Array(off); out.set(enc.encode('PINPAK01'), 0); new DataView(out.buffer).setUint32(8, names.length, true);
-  let pos = 12; for (const e of entries) { out.set(e, pos); pos += 56; } for (const b of blobs) { out.set(b, pos); pos += b.length; }
+  const out = new Uint8Array(off); out.set(enc.encode('PINPAK02'), 0); new DataView(out.buffer).setUint32(8, names.length, true); out.set(settingsBlock(), 12);
+  let pos = 76; for (const e of entries) { out.set(e, pos); pos += 56; } for (const b of blobs) { out.set(b, pos); pos += b.length; }
   return out;
 }
 window.download = async () => { const pak = await buildPak(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([pak])); a.download = 'pin_archive.bin'; a.click(); log(`saved pin_archive.bin (${fmt(pak.length)}) — flash at 0x310000`); prog(0); };

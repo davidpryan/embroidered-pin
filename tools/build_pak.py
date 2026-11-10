@@ -15,8 +15,10 @@ only = set(opt("--only", "").split(",")) - {""}; excl = set(opt("--exclude", "")
 pieces = json.load(open(os.path.join(HERE, "..", "docs", "pieces.json")))
 names = [n for n in pieces if (not only or n in only) and n not in excl]
 
-def build(names):
-    entries = []; blobs = bytearray(); base = 12 + 56 * len(names)
+DEFAULT_SETTINGS = struct.pack("<BBBBHHHHHHHHHBBBBB37x", 90, 20, 200, 80, 20, 60, 60, 180, 40, 90, 120, 300, 3450, 120, 60, 100, 0, 1)
+def build(names, settings=DEFAULT_SETTINGS):
+    assert len(settings) == 64
+    entries = []; blobs = bytearray(); base = 12 + 64 + 56 * len(names)
     for n in names:
         bgp, dlp = os.path.join(DATA, n + ".bg"), os.path.join(DATA, n + ".dlt")
         bg = open(bgp, "rb").read() if os.path.exists(bgp) else b""
@@ -24,7 +26,7 @@ def build(names):
         bg_off = base + len(blobs); blobs += bg
         dl_off = base + len(blobs); blobs += dl
         entries.append(struct.pack("<32sIIIIII", n.encode()[:31].ljust(32, b"\0"), pieces[n]["frames"], (1 if pieces[n]["loop"] else 0) | (2 if pieces[n].get("gen") else 0), bg_off, len(bg), dl_off, len(dl)))
-    return b"PINPAK01" + struct.pack("<I", len(names)) + b"".join(entries) + bytes(blobs)
+    return b"PINPAK02" + struct.pack("<I", len(names)) + settings + b"".join(entries) + bytes(blobs)
 
 if __name__ == "__main__":
     pak = build(names)

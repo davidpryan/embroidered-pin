@@ -22,6 +22,13 @@ The firmware is compiled by GitHub Actions on every push and served from the sam
 | `tools/pack_delta.py` | PNG frames → `.bg` ground + `.dlt` frame deltas |
 | `tools/build_pak.py` | command-line archive builder (same format the page builds in-browser) |
 
+## Pin settings (no recompiling)
+The gallery has a **Pin settings** panel: backlight and dim levels, dim/sleep timers, motion sensitivity, wake-by-touch,
+hold/loop/generative durations, the share of slots generative pieces may take, low-battery cutoff, CPU speed — with
+presets (all-night party / balanced / long haul) and a rough runtime estimate. The values are written into a 64-byte
+block in the archive header (`PINPAK02`), so each pin can be tuned differently and a data-only reflash (~1 min) applies them.
+**Read battery over USB** listens for the firmware's `BATT x.xx` report (every 10 s) and shows voltage and a rough percentage.
+
 ## Flash budget
 The data partition is 13.3 MB. Build-style pieces cost 150–800 KB each; full-screen seamless loops
 (ripple, spiral, mandala) cost 2–3 MB. The page refuses to build past the limit.

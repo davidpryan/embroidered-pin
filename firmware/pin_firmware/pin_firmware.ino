@@ -38,24 +38,33 @@
 #define PIN_BAT_ADC   1
 #define PIN_BOOT_BTN  0
 
-#define CPU_MHZ            80
-#define BL_NORMAL          90
-#define BL_DIM             20
-#define BL_BOOST          200
+// ---- settings: defaults here, overridden by the 64-byte block in a PINPAK02 archive (set from the web page)
+struct __attribute__((packed)) Settings {
+  uint8_t  bl_normal, bl_dim, bl_boost, cpu_mhz;          // backlight 0-255; cpu 80/160
+  uint16_t dim_after_s, sleep_after_s;                    // sleep 0 = never
+  uint16_t hold_min_s, hold_max_s, loop_min_s, loop_max_s, gen_min_s, gen_max_s;
+  uint16_t batt_low_mv;                                   // low-battery cutoff
+  uint8_t  wom_mg, gen_step_ms, gen_share, touch_wake;    // wake threshold; generative frame interval; % of slots that may be generative; wake by touch
+  uint8_t  batt_icon, reserved[37];
+};
+Settings S = {90, 20, 200, 80, 20, 60, 60, 180, 40, 90, 120, 300, 3450, 120, 60, 100, 0, 1, {0}};
 #define BOOST_MS         4000
-#define DIM_AFTER_MS    20000UL
-#define SLEEP_AFTER_MS  60000UL
-#define HOLD_MIN_MS     60000UL
-#define HOLD_MAX_MS    180000UL
-#define LOOP_MIN_MS     40000UL   // how long a looping piece runs before moving on
-#define LOOP_MAX_MS     90000UL
 #define STIR_MIN_MS     20000UL
 #define STIR_MAX_MS     60000UL
 #define FRAME_MS           85
 #define FADE_STEPS          8
 #define SHUFFLE          true
-#define WOM_THRESHOLD_MG  120
-#define BATT_LOW_V        3.45f
+#define BL_NORMAL (S.bl_normal)
+#define BL_DIM    (S.bl_dim)
+#define BL_BOOST  (S.bl_boost)
+#define DIM_AFTER_MS   (S.dim_after_s * 1000UL)
+#define SLEEP_AFTER_MS (S.sleep_after_s * 1000UL)
+#define HOLD_MIN_MS (S.hold_min_s * 1000UL)
+#define HOLD_MAX_MS (S.hold_max_s * 1000UL)
+#define LOOP_MIN_MS (S.loop_min_s * 1000UL)
+#define LOOP_MAX_MS (S.loop_max_s * 1000UL)
+#define WOM_THRESHOLD_MG (S.wom_mg)
+#define BATT_LOW_V (S.batt_low_mv / 1000.0f)
 
 #define FRAME_PX    (240 * 240)
 #define FRAME_BYTES (FRAME_PX * 2)
@@ -87,9 +96,9 @@ int order[MAX_PIECES]; int orderPos = 0;
 int cur = 0; int frameIdx = 0; uint32_t dltPos = 0, dltEnd = 0, rec1Pos = 0, loopUntil = 0;
 enum Phase { PLAYING, HOLDING, GENERATING } phase = PLAYING;
 uint32_t genDeadline = 0;
-#define GEN_MIN_MS  120000UL   // minimum slot for a generative piece; it always finishes what it is making
-#define GEN_MAX_MS  300000UL
-#define GEN_STEP_MS 60
+#define GEN_MIN_MS (S.gen_min_s * 1000UL)   // minimum slot for a generative piece; it always finishes what it is making
+#define GEN_MAX_MS (S.gen_max_s * 1000UL)
+#define GEN_STEP_MS (S.gen_step_ms)
 uint32_t nextFrameAt = 0, holdUntil = 0, pieceDeadline = 0, nextStir = 0, lastMotion = 0, boostUntil = 0;
 uint8_t currentBL = 255;
 RTC_DATA_ATTR int savedPiece = 0;
@@ -106,11 +115,14 @@ bool loadPak() {
   part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, NULL);
   if (!part) return false;
   uint8_t hdr[12]; esp_partition_read(part, 0, hdr, 12);
-  if (memcmp(hdr, "PINPAK01", 8) != 0) return false;
+  bool v2 = memcmp(hdr, "PINPAK02", 8) == 0;
+  if (!v2 && memcmp(hdr, "PINPAK01", 8) != 0) return false;
   uint32_t count; memcpy(&count, hdr + 8, 4);
   if (count > MAX_PIECES) count = MAX_PIECES;
+  uint32_t tableOff = 12;
+  if (v2) { Settings tmp; esp_partition_read(part, 12, &tmp, sizeof tmp); if (tmp.cpu_mhz == 80 || tmp.cpu_mhz == 160) S = tmp; tableOff = 12 + sizeof(Settings); }
   for (uint32_t i = 0; i < count; i++) {
-    uint8_t e[56]; esp_partition_read(part, 12 + i * 56, e, 56);
+    uint8_t e[56]; esp_partition_read(part, tableOff + i * 56, e, 56);
     memcpy(pieces[i].name, e, 32); pieces[i].name[31] = 0;
     uint32_t v[6]; memcpy(v, e + 32, 24);
     pieces[i].frames = v[0]; pieces[i].loop = v[1] & 1; pieces[i].gen = v[1] & 2; pieces[i].genId = pieces[i].gen ? genIndex(pieces[i].name) : -1; pieces[i].bgOff = v[2]; pieces[i].bgLen = v[3]; pieces[i].dltOff = v[4]; pieces[i].dltLen = v[5];
@@ -162,7 +174,14 @@ void fadeOut() {
     blit();
   }
 }
-int nextIndex() { orderPos = (orderPos + 1) % nPieces; return order[orderPos]; }
+int nextIndex() {
+  for (int tries = 0; tries < nPieces; tries++) {
+    orderPos = (orderPos + 1) % nPieces; int p = order[orderPos];
+    if (pieces[p].gen && random(100) >= S.gen_share) continue;      // skip some generative slots to save battery
+    return p;
+  }
+  orderPos = (orderPos + 1) % nPieces; return order[orderPos];
+}
 
 // ---------------- IMU / sleep ----------------
 void imuWrite(uint8_t r, uint8_t v) { Wire.beginTransmission(QMI_ADDR); Wire.write(r); Wire.write(v); Wire.endTransmission(); }
@@ -188,13 +207,17 @@ void deepSleep(bool lowBatt) {
   uint32_t t0 = millis();
   while (digitalRead(PIN_IMU_INT1) == HIGH && millis() - t0 < 500) { imuClear(); delay(10); }
   if (lowBatt) esp_sleep_enable_timer_wakeup(600ULL * 1000000ULL);
-  else { esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_IMU_INT1, 1); rtc_gpio_pullup_en((gpio_num_t)PIN_BOOT_BTN); esp_sleep_enable_ext1_wakeup(1ULL << PIN_BOOT_BTN, ESP_EXT1_WAKEUP_ALL_LOW); }
+  else {
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_IMU_INT1, 1);                                  // motion
+    if (S.touch_wake) { rtc_gpio_pullup_en((gpio_num_t)PIN_TP_INT); esp_sleep_enable_ext1_wakeup(1ULL << PIN_TP_INT, ESP_EXT1_WAKEUP_ALL_LOW); }   // touch (active low)
+    else { rtc_gpio_pullup_en((gpio_num_t)PIN_BOOT_BTN); esp_sleep_enable_ext1_wakeup(1ULL << PIN_BOOT_BTN, ESP_EXT1_WAKEUP_ALL_LOW); }         // BOOT button
+  }
   esp_deep_sleep_start();
 }
 
 // ---------------- setup / loop ----------------
 void setup() {
-  setCpuFrequencyMhz(CPU_MHZ); WiFi.mode(WIFI_OFF); btStop(); Serial.begin(115200);
+  WiFi.mode(WIFI_OFF); btStop(); Serial.begin(115200);
   pinMode(PIN_IMU_INT1, INPUT); pinMode(PIN_TP_INT, INPUT_PULLUP); pinMode(PIN_BOOT_BTN, INPUT_PULLUP); analogReadResolution(12);
   frameBuf = (uint16_t *)ps_malloc(FRAME_BYTES); recBuf = (uint8_t *)ps_malloc(REC_MAX);
   if (!frameBuf || !recBuf) Serial.println("PSRAM alloc failed");
@@ -203,12 +226,20 @@ void setup() {
   float v = batteryV();
   if (v < BATT_LOW_V && v < 4.25f) { gfx->fillCircle(120, 120, 6, RGB565_RED); setBacklight(BL_DIM); delay(1200); deepSleep(true); }
   randomSeed(esp_random());
-  if (!loadPak()) { gfx->setTextColor(RGB565_RED); gfx->setCursor(40, 110); gfx->print("No animation archive"); setBacklight(BL_NORMAL); while (true) delay(1000); }
+  bool ok = loadPak();
+  setCpuFrequencyMhz(S.cpu_mhz == 160 ? 160 : 80);
+  if (!ok) { gfx->setTextColor(RGB565_RED); gfx->setCursor(40, 110); gfx->print("No animation archive"); setBacklight(BL_NORMAL); while (true) delay(1000); }
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, 400000); imuSetupWoM();
   attachInterrupt(digitalPinToInterrupt(PIN_IMU_INT1), onMotion, RISING);
   attachInterrupt(digitalPinToInterrupt(PIN_TP_INT), onTouch, FALLING);
   for (int i = 0; i < nPieces; i++) if (order[i] == savedPiece % nPieces) orderPos = i;
   startPiece(order[orderPos], true);
+  if (S.batt_icon && v < 4.25f && v < 3.7f) {   // stitched battery glyph, bottom, for a moment
+    int pct = constrain((int)((v - 3.4f) / 0.75f * 100), 0, 100);
+    gfx->drawRoundRect(96, 200, 44, 18, 3, RGB565_WHITE); gfx->fillRect(140, 205, 4, 8, RGB565_WHITE);
+    gfx->fillRect(99, 203, 38 * pct / 100, 12, pct < 25 ? RGB565_RED : RGB565_WHITE);
+    setBacklight(BL_NORMAL); delay(1500); blit();
+  }
   setBacklight(BL_NORMAL); lastMotion = millis();
 }
 
@@ -223,7 +254,7 @@ void loop() {
   }
   uint32_t idle = now - lastMotion;
   if (now < boostUntil) setBacklight(BL_BOOST); else if (idle > DIM_AFTER_MS) setBacklight(BL_DIM); else setBacklight(BL_NORMAL);
-  if (idle > SLEEP_AFTER_MS && phase != PLAYING) deepSleep(false);
+  if (S.sleep_after_s && idle > SLEEP_AFTER_MS && phase != PLAYING) deepSleep(false);
 
   if (phase == GENERATING) {
     if (now >= genDeadline && (genCanSwitch() || now >= genDeadline + 180000UL)) { fadeOut(); startPiece(nextIndex(), true); }   // finish the composition first
@@ -242,6 +273,6 @@ void loop() {
     else if (pieces[cur].frames <= 8 && now >= nextStir) startPiece(cur, true, true);   // insects stir again, deadline unchanged
   }
   static uint32_t lastBatt = 0;
-  if (now - lastBatt > 30000) { lastBatt = now; float v = batteryV(); if (v < BATT_LOW_V && v < 4.25f) deepSleep(true); }
+  if (now - lastBatt > 10000) { lastBatt = now; float v = batteryV(); Serial.printf("BATT %.2f %s\n", v, v > 4.25f ? "USB" : "BAT"); if (v < BATT_LOW_V && v < 4.25f) deepSleep(true); }
   delay(phase == HOLDING ? 40 : 3);
 }
