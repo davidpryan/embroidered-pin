@@ -1468,5 +1468,229 @@
 "bg": false,
 "bytes": 0,
 "gen": true
+},
+"gen_seigaiha": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asanoha": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_shippo": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_kikko": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_hitomezashi": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_kagome": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_yagasuri": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_kanoko": {
+"set": "generative",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_seigaiha_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asanoha_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_shippo_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_kikko_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_hitomezashi_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_kagome_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_yagasuri_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_kanoko_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_roses_cream_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_daisies_black_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_lavender_cream_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_blossom_black_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_ferns_cream_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_vine_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_spirograph_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_mandala_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_phyllotaxis_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_granny_shapes_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_asawa_nested_black_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
+},
+"gen_harmonograph_flow": {
+"set": "tap-flow",
+"frames": 0,
+"loop": false,
+"bg": false,
+"bytes": 0,
+"gen": true
 }
 }

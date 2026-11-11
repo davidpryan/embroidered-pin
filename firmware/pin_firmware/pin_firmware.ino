@@ -177,7 +177,7 @@ void startPiece(int p, bool fromGround, bool stir = false) {
   cur = p; savedPiece = p;
   if (!stir) pieceDeadline = 0;
   tpStayAwake(false);
-  if (pieces[p].gen && pieces[p].genId >= 0) { genSlow = pieces[p].genId & 256; genInit(pieces[p].genId & 255); if (genIsReactive()) tpStayAwake(true); blit(); phase = GENERATING; genDeadline = millis() + random(GEN_MIN_MS, GEN_MAX_MS); nextFrameAt = millis(); return; }
+  if (pieces[p].gen && pieces[p].genId >= 0) { genSlow = pieces[p].genId & 256; genFlow = pieces[p].genId & 512; genInit(pieces[p].genId & 255); if (genIsReactive()) tpStayAwake(true); blit(); phase = GENERATING; genDeadline = millis() + random(GEN_MIN_MS, GEN_MAX_MS); nextFrameAt = millis(); return; }
   dltPos = pieces[p].dltOff; dltEnd = pieces[p].dltOff + pieces[p].dltLen;
   uint32_t len0 = 0; if (dltPos + 4 <= dltEnd) esp_partition_read(part, dltPos, &len0, 4);
   rec1Pos = dltPos + 4 + len0;
@@ -286,7 +286,7 @@ void loop() {
       else if (!tp.down && wasDown) genTouch(2, tp.x, tp.y);
       wasDown = tp.down;
     }
-    else if (tp.gesture == G_TAP || (tp.down && !wasDown)) { if (!tp.down || now - downAt > 300) { fadeOut(); startPiece(nextIndex(), true); } wasDown = tp.down; if (tp.down) downAt = now; }
+    else if (tp.gesture == G_TAP || (tp.down && !wasDown)) { if (!tp.down || now - downAt > 300) { fadeOut(); if (phase == GENERATING && genFlow) startPiece(cur, true); else startPiece(nextIndex(), true); } wasDown = tp.down; if (tp.down) downAt = now; }   // in flow pieces a tap sews a fresh composition
     else wasDown = tp.down;
   }
   uint32_t idle = now - lastMotion;
@@ -294,7 +294,12 @@ void loop() {
   if (S.sleep_after_s && idle > SLEEP_AFTER_MS && phase != PLAYING) deepSleep(false);
 
   if (phase == GENERATING) {
-    if (now >= genDeadline && (genCanSwitch() || now >= genDeadline + 180000UL) && !(genIsReactive() && now - lastMotion < 15000)) { fadeOut(); startPiece(nextIndex(), true); }   // finish the composition first; don't leave a reactive piece while it's being played with
+    static uint32_t flowDoneAt = 0;
+    if (genFlow) {                                                                    // flow: finished composition -> brief hold -> next piece
+      if (genComplete) { if (!flowDoneAt) flowDoneAt = now; if (now - flowDoneAt > 4000) { flowDoneAt = 0; fadeOut(); startPiece(nextIndex(), true); } }
+      else { flowDoneAt = 0; if (now >= nextFrameAt) { genStep(); blit(); nextFrameAt = now + GEN_STEP_MS * 3; } }
+    }
+    else if (now >= genDeadline && (genCanSwitch() || now >= genDeadline + 180000UL) && !(genIsReactive() && now - lastMotion < 15000)) { fadeOut(); startPiece(nextIndex(), true); }   // finish the composition first; don't leave a reactive piece while it's being played with
     else if (now >= nextFrameAt) { genStep(); blit(); nextFrameAt = now + (genSlow ? GEN_STEP_MS * 4 : GEN_STEP_MS); }
   } else if (phase == PLAYING) {
     if (now >= nextFrameAt) {

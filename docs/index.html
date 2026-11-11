@@ -181,7 +181,7 @@ function render() {
       <div class="tick">${sel.has(n)?'✓':''}</div>
       <img src="thumbs/${n}.${anim?'gif':'png'}" loading="lazy" alt="${n}">
       <div class="n"><span>${n.replace(/_/g,' ')}</span><span>${p.gen ? 'on-device' : fmt(p.bytes)}</span></div>
-      <div class="s"><span class="tag">${p.set}</span>${p.gen ? (n.endsWith('_slow') ? '<span class="tag" style="color:#9cd">slow · continuous</span>' : n.startsWith('touch_') ? '<span class="tag" style="color:#e8a">touch ✋</span>' : '<span class="tag" style="color:#d6a83a">generative ∞</span>') : `<span class="tag">${p.frames} fr</span>`}${p.loop?'<span class="tag loop">loop</span>':''}${p.bg?'<span class="tag">ground</span>':''}</div>
+      <div class="s"><span class="tag">${p.set}</span>${p.gen ? (n.endsWith('_slow') ? '<span class="tag" style="color:#9cd">slow · continuous</span>' : n.startsWith('touch_') ? '<span class="tag" style="color:#e8a">touch ✋</span>' : n.endsWith('_flow') ? '<span class="tag" style="color:#bd8">tap · flow →</span>' : '<span class="tag" style="color:#d6a83a">generative ∞</span>') : `<span class="tag">${p.frames} fr</span>`}${p.loop?'<span class="tag loop">loop</span>':''}${p.bg?'<span class="tag">ground</span>':''}</div>
     </div>`; }).join('');
   document.querySelectorAll('#sets .chip').forEach(c => c.classList.toggle('on', activeSets.has(c.dataset.set)));
   const u = used(), pct = Math.min(100, u / CAP * 100);

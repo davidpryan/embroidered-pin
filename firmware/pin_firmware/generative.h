@@ -8,7 +8,7 @@
 extern uint16_t *frameBuf;
 #define GW 240
 #define GH 240
-#define GEN_COUNT 62
+#define GEN_COUNT 70
 static const char *GEN_NAMES[GEN_COUNT] = {"gen_wander", "gen_spirograph", "gen_vine", "gen_lissajous", "gen_sashiko_drift",
                                            "gen_patchwork", "gen_mandala", "gen_flowfield", "gen_phyllotaxis", "gen_life_x", "gen_granny_square", "gen_granny_shapes",
                                            "gen_roses_cream", "gen_roses_black", "gen_daisies_cream", "gen_daisies_black", "gen_lavender_cream", "gen_lavender_black",
@@ -17,7 +17,9 @@ static const char *GEN_NAMES[GEN_COUNT] = {"gen_wander", "gen_spirograph", "gen_
                                            "gen_asawa_column_cream", "gen_asawa_column_black", "gen_asawa_loops_cream", "gen_asawa_loops_black",
                                            "gen_turing", "gen_truchet", "gen_flock", "gen_dla", "gen_packing", "gen_subdivide", "gen_contours", "gen_attractor", "gen_harmonograph", "gen_molnar",
                                            "touch_seam", "touch_satin", "touch_bloom", "touch_ripple", "touch_knots", "touch_flock", "touch_crystal", "touch_vine", "touch_web", "touch_granny",
-                                           "touch_rose", "touch_asawa", "touch_mend", "touch_buttons", "touch_kaleido", "touch_string", "touch_contours", "touch_shibori", "touch_life", "touch_truchet"};
+                                           "touch_rose", "touch_asawa", "touch_mend", "touch_buttons", "touch_kaleido", "touch_string", "touch_contours", "touch_shibori", "touch_life", "touch_truchet",
+                                           "gen_seigaiha", "gen_asanoha", "gen_shippo", "gen_kikko", "gen_hitomezashi", "gen_kagome", "gen_yagasuri", "gen_kanoko"};
+#define REACTIVE_LAST 61
 #define REACTIVE_FIRST 42
 
 // ---------------- palette / colour helpers ----------------
@@ -26,7 +28,7 @@ static inline void C888(uint16_t c, int &r, int &g, int &b) { r = (c >> 8) & 0xF
 static uint16_t shade(uint16_t c, float f) { int r, g, b; C888(c, r, g, b); r = constrain(int(r * f), 0, 255); g = constrain(int(g * f), 0, 255); b = constrain(int(b * f), 0, 255); return C565(r, g, b); }
 static uint16_t lerp565(uint16_t a, uint16_t b, int t) { int ar, ag, ab, br, bg, bb; C888(a, ar, ag, ab); C888(b, br, bg, bb); return C565(ar + (br - ar) * t / 256, ag + (bg - ag) * t / 256, ab + (bb - ab) * t / 256); }
 static const uint16_t PAL[] = {C565(214, 168, 58), C565(124, 34, 42), C565(72, 132, 130), C565(236, 226, 204), C565(96, 58, 92), C565(178, 92, 52), C565(132, 150, 100)};
-static const uint16_t CREAM = C565(238, 230, 210), INDIGO = C565(38, 52, 96), VERM = C565(196, 66, 44), SOOT = C565(30, 27, 29);
+static const uint16_t CREAM = C565(238, 230, 210), INDIGO = C565(38, 52, 96), INDIGO_L = C565(74, 96, 150), VERM = C565(196, 66, 44), SOOT = C565(30, 27, 29);
 static uint16_t ground = 0, groundShadow = 0;
 static inline bool inCircle(float x, float y, float r = 118) { float dx = x - 120, dy = y - 120; return dx * dx + dy * dy < r * r; }
 static float frand() { return random(0, 10000) / 10000.0f; }
@@ -83,6 +85,7 @@ static Gen G;
 static bool genComplete = false;   // composition finished: hold (or, in slow mode, dissolve and begin again)
 static bool genEvolving = false;   // never 'finishes' — may be switched away from at any time
 static bool genSlow = false;
+static bool genFlow = false;       // flow mode: sew slowly, tap = fresh composition, finished = advance to the next piece
 static int  slowFade = 0;
 static uint16_t palRand() { return PAL[random(0, 7)]; }
 
@@ -545,7 +548,7 @@ static void stepMolnar() { if (G.steps % 5) return;
 // ================= 42..61 reactive generators: the finger is the needle =================
 static uint16_t MUSTARD_C() { return C565(214, 168, 58); }
 struct TouchState { bool down; float x, y, lx, ly, dx, dy; int ev; uint32_t downSteps; float path[2]; } TS;   // ev: 0 down 1 move 2 up, -1 none
-static bool genIsReactive() { return G.id >= REACTIVE_FIRST; }
+static bool genIsReactive() { return G.id >= REACTIVE_FIRST && G.id <= REACTIVE_LAST; }
 static void genTouch(int type, int x, int y) {
   if (type == 0) { TS.down = true; TS.x = TS.lx = x; TS.y = TS.ly = y; TS.dx = TS.dy = 0; TS.downSteps = 0; }
   else if (type == 1) { TS.lx = TS.x; TS.ly = TS.y; TS.x = x; TS.y = y; TS.dx = TS.x - TS.lx; TS.dy = TS.y - TS.ly; }
@@ -721,12 +724,118 @@ static void stepTTruchet() {
     for (int y = j * 30; y < j * 30 + 30; y++) for (int x = i * 30; x < i * 30 + 30; x++) if (inCircle(x, y, 121)) frameBuf[y * GW + x] = ground; drawTruchetTile(i, j, G.pcol); }
   consumeTouch(); }
 
+
+// ================= 62..69 generative wagara: a fresh randomised traditional pattern each time, sewn in order =================
+struct Wag { float sc, rot, p1; int i, j, n, phase; uint16_t a, b; bool darkG; } WG;
+static void wagGround() { WG.darkG = random(3) != 0; if (WG.darkG) { fillGround(INDIGO, true); WG.a = CREAM; WG.b = random(2) ? VERM : C565(214, 168, 58); } else { fillGround(C565(236, 228, 208), true); WG.a = INDIGO; WG.b = random(2) ? VERM : INDIGO_L; } }
+static void dashArc(float cx, float cy, float r, float a0, float a1, uint16_t col, float w = 2.4f) { int n = max(4, (int)((a1 - a0) * r / 7)); for (int k = 0; k < n; k++) { float t0 = a0 + (a1 - a0) * k / n, t1 = t0 + (a1 - a0) * 0.68f / n; float x0 = cx + r * cosf(t0), y0 = cy + r * sinf(t0), x1 = cx + r * cosf(t1), y1 = cy + r * sinf(t1); if (inCircle(x0, y0, 117) && inCircle(x1, y1, 117)) stitch(x0, y0, x1, y1, w, col); } }
+static void fillQuad(float *xs, float *ys, uint16_t col, float ang) {   // scanline fill of a convex quad with satin stripes
+  float ymin = min(min(ys[0], ys[1]), min(ys[2], ys[3])), ymax = max(max(ys[0], ys[1]), max(ys[2], ys[3])); float ca = cosf(ang), sa = sinf(ang);
+  for (int y = max(0, (int)ymin); y <= min(239, (int)ymax); y++) { float xl = 1e9, xr = -1e9;
+    for (int e = 0; e < 4; e++) { float x0 = xs[e], y0 = ys[e], x1 = xs[(e + 1) % 4], y1 = ys[(e + 1) % 4]; if ((y0 <= y && y1 > y) || (y1 <= y && y0 > y)) { float x = x0 + (y - y0) * (x1 - x0) / (y1 - y0); xl = min(xl, x); xr = max(xr, x); } }
+    for (int x = max(0, (int)xl); x <= min(239, (int)xr); x++) if (inCircle(x, y, 118)) { int st = ((int)floorf((x * ca + y * sa) / 1.6f)) & 1; px(x, y, st ? col : shade(col, 0.84f)); } }
+}
+// walk the square ring `ring` (8*ring cells, or 1 for ring 0): k -> (gi, gj); returns false when k is past the ring
+static bool ringCell(int ring, int k, int &gi, int &gj) {
+  if (ring == 0) { gi = gj = 0; return k == 0; } int per = 8 * ring; if (k >= per) return false; int side = 2 * ring;
+  int e = k / side, t = k % side;
+  if (e == 0) { gi = -ring + t; gj = -ring; } else if (e == 1) { gi = ring; gj = -ring + t; } else if (e == 2) { gi = ring - t; gj = ring; } else { gi = -ring; gj = ring - t; }
+  return true;
+}
+// 62 seigaiha: scallops row by row
+static void initSeig() { wagGround(); WG.sc = frandr(26, 46); WG.j = 0; WG.i = 0; }
+static void stepSeig() {
+  float R = WG.sc; int rows = (int)(260 / (R / 2)) + 1; if (WG.j > rows) { genComplete = true; return; }
+  float cy = WG.j * R / 2 - 4, cx = -R + (WG.j % 2 ? R : 0) + WG.i * 2 * R;
+  if (cx > 264 + R) { WG.j++; WG.i = 0; return; }
+  if (sqrtf((cx - 120) * (cx - 120) + (cy - 120) * (cy - 120)) < 120 + R) {
+    disc(cx, cy, R, ground); dashArc(cx, cy, R - 3, 3.1416f, 6.2832f, WG.a); dashArc(cx, cy, R * 0.62f, 3.1416f, 6.2832f, WG.a); dashArc(cx, cy, R * 0.3f, 3.1416f, 6.2832f, WG.b); }
+  WG.i++;
+}
+// 63 asanoha: three line families then the hemp-leaf spokes
+static void initAsa() { wagGround(); WG.sc = frandr(34, 58); WG.rot = frandr(0, 1.0f); WG.phase = 0; WG.i = -8; WG.j = 0; }
+static void stepAsa() {
+  float a = WG.sc, h = a * 0.866f;
+  if (WG.phase < 3) { float ang = WG.rot + 1.0472f * WG.phase; float dx = cosf(ang), dy = sinf(ang), nx = -dy, ny = dx; float off = WG.i * (WG.phase == 0 ? h : a * 0.866f);
+    float px0 = 120 + nx * off, py0 = 120 + ny * off; float fx = px0 - 120, fy = py0 - 120; float bq = 2 * (fx * dx + fy * dy), cq = fx * fx + fy * fy - 118 * 118, disc_ = bq * bq - 4 * cq;
+    if (disc_ > 0) { float sq = sqrtf(disc_); float t0 = (-bq - sq) / 2, t1 = (-bq + sq) / 2; for (float t = t0; t < t1; t += 10) { float e = min(t1, t + 6.5f); stitch(px0 + dx * t, py0 + dy * t, px0 + dx * e, py0 + dy * e, 2.4f, WG.a); } }
+    if (++WG.i > 8) { WG.i = -8; WG.phase++; } return; }
+  // spokes: iterate triangles of the lattice
+  int i = WG.i, j = WG.j; if (j > 6) { genComplete = true; return; }
+  float ca = cosf(WG.rot), sa = sinf(WG.rot);
+  auto P_ = [&](float ii, float jj, float &x, float &y) { float lx = a * (ii + jj / 2), ly = jj * h; x = 120 + lx * ca - ly * sa; y = 120 + lx * sa + ly * ca; };
+  for (int tri = 0; tri < 2; tri++) { float xs[3], ys[3]; if (tri == 0) { P_(i, j, xs[0], ys[0]); P_(i + 1, j, xs[1], ys[1]); P_(i, j + 1, xs[2], ys[2]); } else { P_(i + 1, j, xs[0], ys[0]); P_(i, j + 1, xs[1], ys[1]); P_(i + 1, j + 1, xs[2], ys[2]); }
+    float gx = (xs[0] + xs[1] + xs[2]) / 3, gy = (ys[0] + ys[1] + ys[2]) / 3; if (inCircle(gx, gy, 112)) for (int v = 0; v < 3; v++) stitch(gx, gy, xs[v], ys[v], 2.0f, WG.b); }
+  if (++WG.i > 8) { WG.i = -9; WG.j++; }
+}
+// 64 shippō: interlocking circles from the centre out
+static void initShip() { wagGround(); WG.sc = frandr(30, 52); WG.i = 0; WG.j = 0; WG.phase = 0; }
+static void stepShip() {
+  float r = WG.sc, s_ = r * 1.41421f; int gi, gj;
+  if (!ringCell(WG.j, WG.i, gi, gj)) { WG.j++; WG.i = 0; if (WG.j > 4) genComplete = true; return; }
+  for (int which = 0; which < 2; which++) { float cx = 120 + gi * s_ + (which ? s_ / 2 : 0), cy = 120 + gj * s_ + (which ? s_ / 2 : 0);
+    if (sqrtf((cx - 120) * (cx - 120) + (cy - 120) * (cy - 120)) < 118 + r) { dashArc(cx, cy, r, 0, 6.2832f, WG.a, 2.6f); if (inCircle(cx, cy, 108)) knot(cx, cy, 3.0f, WG.b); } }
+  WG.i++;
+}
+// 65 kikkō: hexagons, then a small red motif in each
+static void initKik() { wagGround(); WG.sc = frandr(24, 44); WG.i = -5; WG.j = -5; WG.phase = 0; }
+static void stepKik() {
+  float R = WG.sc, w = 1.732f * R; if (WG.j > 5) { if (WG.phase == 0) { WG.phase = 1; WG.i = -5; WG.j = -5; return; } genComplete = true; return; }
+  float cx = 120 + WG.i * w + (WG.j & 1 ? w / 2 : 0), cy = 120 + WG.j * 1.5f * R;
+  if (sqrtf((cx - 120) * (cx - 120) + (cy - 120) * (cy - 120)) < 118 + R) {
+    if (WG.phase == 0) { for (int k = 0; k < 6; k++) { float a0 = 1.0472f * k + 0.5236f, a1 = a0 + 1.0472f; float x0 = cx + R * cosf(a0), y0 = cy + R * sinf(a0), x1 = cx + R * cosf(a1), y1 = cy + R * sinf(a1); dashes(x0, y0, x1, y1, 7, 3, 2.6f, WG.a); } }
+    else if (inCircle(cx, cy, 108)) for (int k = 0; k < 3; k++) { float a = 1.0472f * k; stitch(cx - R * 0.28f * cosf(a), cy - R * 0.28f * sinf(a), cx + R * 0.28f * cosf(a), cy + R * 0.28f * sinf(a), 2.2f, WG.b); } }
+  if (++WG.i > 5) { WG.i = -5; WG.j++; }
+}
+// 66 hitomezashi: rows of alternating dashes, then columns; the maze appears
+static void initHito() { wagGround(); WG.sc = frandr(9, 15); WG.n = (int)(240 / WG.sc) + 1; for (int i = 0; i < 64; i++) G.cells[i] = random(2); WG.i = 0; WG.phase = 0; }
+static void stepHito() {
+  float sp = WG.sc; int n = min(WG.n, 30); float o = 120 - sp * n / 2;
+  if (WG.i > n) { if (WG.phase == 0) { WG.phase = 1; WG.i = 0; return; } genComplete = true; return; }
+  for (int k = 0; k < n; k++) { if ((k + G.cells[(WG.phase * 32 + WG.i) & 63]) % 2) continue;
+    if (WG.phase == 0) { float x = o + k * sp, y = o + WG.i * sp; if (inCircle(x + sp / 2, y, 114)) stitch(x + 1.5f, y, x + sp - 1.5f, y, 2.2f, WG.a); }
+    else { float x = o + WG.i * sp, y = o + k * sp; if (inCircle(x, y + sp / 2, 114)) stitch(x, y + 1.5f, x, y + sp - 1.5f, 2.2f, WG.b); } }
+  WG.i++;
+}
+// 67 kagome: three families of paired lines
+static void initKag() { wagGround(); WG.sc = frandr(34, 60); WG.rot = frandr(0, 1.0f); WG.phase = 0; WG.i = -4; }
+static void stepKag() {
+  if (WG.phase >= 3) { genComplete = true; return; }
+  float ang = WG.rot + 1.0472f * WG.phase; float dx = cosf(ang), dy = sinf(ang), nx = -dy, ny = dx;
+  for (int o = -1; o <= 1; o += 2) { float off = WG.i * WG.sc + o * 5; float px0 = 120 + nx * off, py0 = 120 + ny * off; float fx = px0 - 120, fy = py0 - 120; float bq = 2 * (fx * dx + fy * dy), cq = fx * fx + fy * fy - 118 * 118, disc_ = bq * bq - 4 * cq;
+    if (disc_ > 0) { float sq = sqrtf(disc_); float t0 = (-bq - sq) / 2, t1 = (-bq + sq) / 2; for (float t = t0; t < t1; t += 13) { float e = min(t1, t + 10); stitch(px0 + dx * t, py0 + dy * t, px0 + dx * e, py0 + dy * e, 3.0f, WG.a); } } }
+  if (++WG.i > 4) { WG.i = -4; WG.phase++; }
+}
+// 68 yagasuri: arrow-feather columns, one fletching at a time
+static void initYag() { WG.darkG = false; fillGround(C565(236, 228, 208), true); WG.a = INDIGO; WG.b = random(2) ? INDIGO_L : VERM; WG.sc = frandr(30, 50); WG.i = 0; WG.j = -2; }
+static void stepYag() {
+  float cw = WG.sc, fh = cw * 1.1f; int cols = (int)(240 / cw) + 2; if (WG.i >= cols) { genComplete = true; return; }
+  float x0 = -cw + WG.i * cw, y0 = -fh + WG.j * fh + ((WG.i % 2) ? fh / 2 : 0); bool flip = WG.i % 2;
+  for (int side = -1; side <= 1; side += 2) { float xa = x0 + cw / 2, xb = xa + side * cw / 2; float xs[4], ys[4];
+    if (!flip) { xs[0] = xa; ys[0] = y0; xs[1] = xb; ys[1] = y0 - fh * 0.4f; xs[2] = xb; ys[2] = y0 + fh * 0.42f; xs[3] = xa; ys[3] = y0 + fh * 0.82f; }
+    else { xs[0] = xa; ys[0] = y0 + fh * 0.82f; xs[1] = xb; ys[1] = y0 + fh * 1.22f; xs[2] = xb; ys[2] = y0 + fh * 0.4f; xs[3] = xa; ys[3] = y0; }
+    fillQuad(xs, ys, side == 1 ? WG.a : WG.b, 1.5708f + side * 0.6f); }
+  dashes(x0 + cw / 2, y0 - 2, x0 + cw / 2, y0 + fh, 8, 3, 2.0f, CREAM);
+  if (++WG.j * fh > 260) { WG.j = -2; WG.i++; }
+}
+// 69 kanoko shibori: rings of dye, from the centre out
+static void initKan() { wagGround(); if (!WG.darkG) { fillGround(INDIGO, true); WG.darkG = true; WG.a = CREAM; } WG.sc = frandr(26, 40); WG.i = 0; WG.j = 0; }
+static void stepKan() {
+  float sp = WG.sc; int gi, gj;
+  if (!ringCell(WG.j, WG.i, gi, gj)) { WG.j++; WG.i = 0; if (WG.j > 5) genComplete = true; return; }
+  WG.i++;
+  float x = 120 + gi * sp + (gj & 1 ? sp / 2 : 0), y = 120 + gj * sp * 0.87f; if (!inCircle(x, y, 110)) return;
+  float r = sp * 0.33f; for (int q = 0; q < 14; q++) { float a0 = 0.4488f * q + frandr(-0.1f, 0.1f), a1 = a0 + 0.3f; stitch(x + r * cosf(a0), y + r * sinf(a0), x + r * cosf(a1), y + r * sinf(a1), 3.2f, shade(WG.a, 0.85f + 0.2f * frand())); }
+  knot(x, y, r * 0.25f, shade(WG.a, 0.8f));
+}
+
 // ---------------- dispatch ----------------
 static const bool GEN_EVOLVING[GEN_COUNT] = {true, false, false, true, true, true, false, true, false, true, false, false,
                                             false, false, false, false, false, false, false, false, false, false,
                                             false, false, false, false, false, false, false, false, false, false,
                                             false, true, true, false, false, false, true, false, false, true,
-                                            true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true};
+                                            true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+                                            false, false, false, false, false, false, false, false};
 static void genInit(int id) { G.id = id; G.steps = 0; genComplete = false; genEvolving = GEN_EVOLVING[id]; slowFade = 0; TS.down = false; TS.ev = -1;
   switch (id) { case 0: initWander(); break; case 1: initSpiro(); break; case 2: initVine(); break; case 3: initLiss(); break; case 4: initSash(); drawSash(); break;
                 case 5: initPatch(); break; case 6: initMand(); break; case 7: initFlow(); break; case 8: initPhyl(); break; case 9: initLife(); break; case 10: grannyNew(false); break; case 11: grannyNew(true); break; case 32: initTuring(); break; case 33: initTruchet(); break; case 34: initFlock(); break; case 35: initDLA(); break; case 36: initPack(); break;
@@ -735,6 +844,7 @@ static void genInit(int id) { G.id = id; G.steps = 0; genComplete = false; genEv
                 case 47: initTFlock(); break; case 48: initTCrystal(); break; case 49: initTVine(); break; case 50: initTWeb(); break; case 51: initTGranny(); break;
                 case 52: initTRose(); break; case 53: initTAsawa(); break; case 54: initTMend(); break; case 55: initTButtons(); break; case 56: initTKaleido(); break;
                 case 57: initTString(); break; case 58: initTContours(); break; case 59: initTShibori(); break; case 60: initTLife(); break; case 61: initTTruchet(); break;
+                case 62: initSeig(); break; case 63: initAsa(); break; case 64: initShip(); break; case 65: initKik(); break; case 66: initHito(); break; case 67: initKag(); break; case 68: initYag(); break; case 69: initKan(); break;
                 default: if (id >= 22) asawaNew(id - 22); else floraInit(id - 12); } }
 static void genStep() {
   if (genComplete) {
@@ -750,13 +860,15 @@ static void genStep() {
                   case 47: stepTFlock(); break; case 48: stepTCrystal(); break; case 49: stepTVine(); break; case 50: stepTWeb(); break; case 51: stepTGranny(); break;
                   case 52: stepTRose(); break; case 53: stepTAsawa(); break; case 54: stepTMend(); break; case 55: stepTButtons(); break; case 56: stepTKaleido(); break;
                   case 57: stepTString(); break; case 58: stepTContours(); break; case 59: stepTShibori(); break; case 60: stepTLife(); break; case 61: stepTTruchet(); break;
+                  case 62: stepSeig(); break; case 63: stepAsa(); break; case 64: stepShip(); break; case 65: stepKik(); break; case 66: stepHito(); break; case 67: stepKag(); break; case 68: stepYag(); break; case 69: stepKan(); break;
                   default: if (G.id >= 22) asawaStep(); else floraStep(); }
   G.steps++;
 }
 // "gen_x" -> id; "gen_x_slow" -> id with slow flag (bit 8)
 static int genIndex(const char *name) {
-  char base[32]; strncpy(base, name, 31); base[31] = 0; int n = strlen(base); bool slow = n > 5 && strcmp(base + n - 5, "_slow") == 0; if (slow) base[n - 5] = 0;
-  for (int i = 0; i < GEN_COUNT; i++) if (strcmp(base, GEN_NAMES[i]) == 0) return i | (slow ? 256 : 0);
+  char base[32]; strncpy(base, name, 31); base[31] = 0; int n = strlen(base);
+  bool slow = n > 5 && strcmp(base + n - 5, "_slow") == 0; bool flow = n > 5 && strcmp(base + n - 5, "_flow") == 0; if (slow || flow) base[n - 5] = 0;
+  for (int i = 0; i < GEN_COUNT; i++) if (strcmp(base, GEN_NAMES[i]) == 0) return i | (slow ? 256 : 0) | (flow ? 512 : 0);
   return -1;
 }
 static bool genCanSwitch() { return genComplete || genEvolving || genSlow; }
