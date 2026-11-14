@@ -1692,5 +1692,285 @@
 "bg": false,
 "bytes": 0,
 "gen": true
+},
+"eye_all_seeing": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 592906
+},
+"eye_applique": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 525116
+},
+"eye_bargello": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 2635110
+},
+"eye_blackwork": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 423313
+},
+"eye_button": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 675954
+},
+"eye_cat": {
+"set": "eyes",
+"frames": 36,
+"loop": true,
+"bg": true,
+"bytes": 772480
+},
+"eye_chain": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 1072755
+},
+"eye_clock": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 283379
+},
+"eye_crochet": {
+"set": "eyes-crafts",
+"frames": 64,
+"loop": false,
+"bg": true,
+"bytes": 221619
+},
+"eye_cross_stitch": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 301957
+},
+"eye_daisy": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 1525684
+},
+"eye_darned": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 487587
+},
+"eye_eyelet": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 558425
+},
+"eye_folk": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 803781
+},
+"eye_goldwork": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 508239
+},
+"eye_googly": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 1166117
+},
+"eye_hamsa": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 239906
+},
+"eye_heart": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 662352
+},
+"eye_hypno": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 1288406
+},
+"eye_kantha": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 2053036
+},
+"eye_keyhole": {
+"set": "eyes",
+"frames": 40,
+"loop": true,
+"bg": true,
+"bytes": 324699
+},
+"eye_knots": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 382628
+},
+"eye_lace": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 831481
+},
+"eye_lash_sun": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 852161
+},
+"eye_many": {
+"set": "eyes",
+"frames": 40,
+"loop": true,
+"bg": true,
+"bytes": 632425
+},
+"eye_mola": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 1152694
+},
+"eye_moon": {
+"set": "eyes",
+"frames": 40,
+"loop": true,
+"bg": true,
+"bytes": 426868
+},
+"eye_nazar": {
+"set": "eyes",
+"frames": 40,
+"loop": true,
+"bg": true,
+"bytes": 2367861
+},
+"eye_peacock": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 1632398
+},
+"eye_quilt": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 348085
+},
+"eye_redwork": {
+"set": "eyes-crafts",
+"frames": 60,
+"loop": false,
+"bg": true,
+"bytes": 159976
+},
+"eye_sashiko": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 1240228
+},
+"eye_sequins": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 559449
+},
+"eye_sleepy": {
+"set": "eyes",
+"frames": 48,
+"loop": true,
+"bg": true,
+"bytes": 714027
+},
+"eye_string_art": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 1320463
+},
+"eye_sun": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 821134
+},
+"eye_watcher": {
+"set": "eyes",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 509234
+},
+"eye_weeping": {
+"set": "eyes",
+"frames": 36,
+"loop": true,
+"bg": true,
+"bytes": 746532
+},
+"eye_wheel": {
+"set": "eyes-crafts",
+"frames": 40,
+"loop": true,
+"bg": true,
+"bytes": 191283
+},
+"eye_wink": {
+"set": "eyes",
+"frames": 40,
+"loop": true,
+"bg": true,
+"bytes": 431167
 }
 }
