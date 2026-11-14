@@ -1972,5 +1972,75 @@
 "loop": true,
 "bg": true,
 "bytes": 431167
+},
+"eye_felted": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 637044
+},
+"eye_granny": {
+"set": "eyes-crafts",
+"frames": 64,
+"loop": false,
+"bg": true,
+"bytes": 203186
+},
+"eye_granny_blink": {
+"set": "eyes-crafts",
+"frames": 40,
+"loop": true,
+"bg": true,
+"bytes": 415249
+},
+"eye_hardanger": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 273470
+},
+"eye_log_cabin": {
+"set": "eyes-crafts",
+"frames": 40,
+"loop": false,
+"bg": true,
+"bytes": 230287
+},
+"eye_pompom": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 2017279
+},
+"eye_punch": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 495460
+},
+"eye_ribbon": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 649970
+},
+"eye_trapunto": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 530193
+},
+"eye_yoyo": {
+"set": "eyes-crafts",
+"frames": 32,
+"loop": true,
+"bg": true,
+"bytes": 307138
 }
 }
